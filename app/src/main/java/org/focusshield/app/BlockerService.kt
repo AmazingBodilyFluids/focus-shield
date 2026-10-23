@@ -125,19 +125,28 @@ class BlockerService : AccessibilityService() {
     private fun checkInstaller() {
         val root = rootInActiveWindow ?: return
         val texts = collectTexts(root)
-        if (texts.any { it.contains(getString(R.string.app_name), ignoreCase = true) }) {
+        val name = getString(R.string.app_name)
+        // Installing an update over the top is fine; only the uninstall prompt is stopped.
+        if (texts.any { it.contains(name, ignoreCase = true) } &&
+            texts.any { it.contains("uninstall", ignoreCase = true) }
+        ) {
             block(getString(R.string.blocked_reason_protect))
         }
     }
 
     private fun checkSettings() {
         val root = rootInActiveWindow ?: return
-        val texts = collectTexts(root)
-        val name = getString(R.string.app_name)
-        if (texts.none { it.contains(name, ignoreCase = true) }) return
-        // Only screens that can switch us off: the accessibility toggle page and App info.
-        val dangerous = listOf("uninstall", "force stop", "clear storage", "clear data", "disable", "turn off")
-        if (hasSwitch(root, 0) || texts.any { t -> dangerous.any { t.contains(it, ignoreCase = true) } }) {
+        val texts = collectTexts(root).map { it.lowercase() }
+        val name = getString(R.string.app_name).lowercase()
+        if (texts.none { it.contains(name) }) return
+        // Only screens that can switch Focus Shield off: its own accessibility page (which has
+        // "Use Focus Shield" / "Focus Shield shortcut"), the stop/turn-off confirmation, and
+        // its App info page. Lists that merely mention it, like the Accessibility menu, stay usable.
+        val ownPage = listOf("use $name", "$name shortcut", "stop $name", "turn off $name")
+        val appInfo = listOf("uninstall", "force stop", "clear storage", "clear data")
+        if (texts.any { t -> ownPage.any { t.contains(it) } } ||
+            texts.any { t -> appInfo.any { t.contains(it) } }
+        ) {
             block(getString(R.string.blocked_reason_protect))
         }
     }
@@ -155,17 +164,6 @@ class BlockerService : AccessibilityService() {
             for (i in 0 until n.childCount) n.getChild(i)?.let { queue.add(it) }
         }
         return out
-    }
-
-    private fun hasSwitch(n: AccessibilityNodeInfo, depth: Int): Boolean {
-        if (depth > 30) return false
-        val cls = n.className?.toString() ?: ""
-        if (cls.endsWith("Switch") || cls.endsWith("SwitchCompat") || cls.endsWith("ToggleButton")) return true
-        for (i in 0 until n.childCount) {
-            val c = n.getChild(i) ?: continue
-            if (hasSwitch(c, depth + 1)) return true
-        }
-        return false
     }
 
     private fun block(what: String) {
