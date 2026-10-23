@@ -69,6 +69,15 @@ class Prefs(context: Context) {
         get() = sp.getLong(KEY_UNLOCKED_UNTIL, 0L)
         set(v) = sp.edit().putLong(KEY_UNLOCKED_UNTIL, v).apply()
 
+    /** What the blocker last read from a browser's address bar, shown in the app for checking. */
+    val lastAddress: String
+        get() = sp.getString(KEY_LAST_ADDRESS, "") ?: ""
+
+    fun recordLastAddress(browser: String, host: String) {
+        val v = "$host  ($browser)"
+        if (v != lastAddress) sp.edit().putString(KEY_LAST_ADDRESS, v).apply()
+    }
+
     val isUnlocked: Boolean
         get() = System.currentTimeMillis() < unlockedUntil
 
@@ -91,6 +100,7 @@ class Prefs(context: Context) {
         private const val KEY_UNLOCK_MINUTES = "unlock_minutes"
         private const val KEY_GUARD = "guard_settings"
         private const val KEY_UNLOCKED_UNTIL = "unlocked_until"
+        private const val KEY_LAST_ADDRESS = "last_address"
     }
 }
 
@@ -107,8 +117,9 @@ fun readBattery(context: Context): BatteryState {
 
 /** Lowercased host of whatever is in a browser's address bar, or null if it isn't a URL. */
 fun hostOf(urlText: String): String? {
-    var s = urlText.trim().lowercase()
-    if (s.isEmpty() || s.contains(' ')) return null
+    // Some browsers append extra words, e.g. "9gag.com, secure connection"; only the first token is the address.
+    var s = urlText.trim().lowercase().split(' ', ',', '\n').first()
+    if (s.isEmpty()) return null
     s = s.substringAfter("://")
     s = s.substringBefore('/').substringBefore('?').substringBefore('#')
     s = s.substringAfter('@').substringBefore(':')

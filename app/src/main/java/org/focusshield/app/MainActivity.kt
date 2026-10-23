@@ -28,6 +28,7 @@ class MainActivity : Activity() {
 
     private lateinit var serviceStatus: TextView
     private lateinit var serviceButton: Button
+    private lateinit var lastAddress: TextView
     private lateinit var lockStatus: TextView
     private lateinit var conditions: TextView
     private lateinit var unlockButton: Button
@@ -97,6 +98,9 @@ class MainActivity : Activity() {
                 "choose \"Allow restricted settings\", then try again.", small = true
         ))
 
+        lastAddress = text("", small = true)
+        col.addView(lastAddress)
+
         col.addView(header("Lock"))
         lockStatus = text("").apply { textSize = 18f; setTypeface(typeface, Typeface.BOLD) }
         col.addView(lockStatus)
@@ -149,10 +153,8 @@ class MainActivity : Activity() {
         saveButton = button("Save") { save() }
         col.addView(saveButton)
 
-        editable.addAll(listOf(
-            appsField, pickAppsButton, keywordsField, sitesField, browsersField,
-            chargerBox, batteryField, waitField, unlockMinutesField, guardBox, saveButton,
-        ))
+        // Block lists can always be added to; only the unlock rules need an unlock to change.
+        editable.addAll(listOf(chargerBox, batteryField, waitField, unlockMinutesField, guardBox))
 
         setContentView(ScrollView(this).apply { addView(col) })
     }
@@ -205,7 +207,20 @@ class MainActivity : Activity() {
 
     private fun save() {
         if (!prefs.isUnlocked) {
-            toast("Locked. Unlock first.")
+            // While locked, new entries are added but nothing can be taken off a list.
+            val before = prefs.blockedApps.size + prefs.appKeywords.size + prefs.blockedSites.size + prefs.browsers.size
+            val removed = (prefs.blockedApps - lines(appsField)).size + (prefs.appKeywords - lines(keywordsField)).size +
+                (prefs.blockedSites - lines(sitesField)).size + (prefs.browsers - lines(browsersField)).size
+            prefs.blockedApps = prefs.blockedApps + lines(appsField)
+            prefs.appKeywords = prefs.appKeywords + lines(keywordsField)
+            prefs.blockedSites = prefs.blockedSites + lines(sitesField)
+            prefs.browsers = prefs.browsers + lines(browsersField)
+            val added = prefs.blockedApps.size + prefs.appKeywords.size + prefs.blockedSites.size + prefs.browsers.size - before
+            loadFields()
+            toast(buildString {
+                append("Added $added")
+                if (removed > 0) append(". Removing items needs an unlock, so $removed were kept")
+            })
             return
         }
         prefs.blockedApps = lines(appsField)
@@ -258,6 +273,9 @@ class MainActivity : Activity() {
         serviceStatus.text = if (on) "✓ Running" else "✗ Off. Blocking won't work until you turn on Focus Shield in Accessibility settings."
         serviceStatus.setTextColor(if (on) Color.parseColor("#2E7D32") else Color.RED)
 
+        val seen = prefs.lastAddress
+        lastAddress.text = "Last website address read from a browser: " + seen.ifEmpty { "none yet" }
+
         val unlocked = prefs.isUnlocked
         val (ok, summary) = conditionsMet()
 
@@ -287,7 +305,7 @@ class MainActivity : Activity() {
         } else {
             lockStatus.text = "Locked. Blocking is on."
             lockStatus.setTextColor(Color.parseColor("#2E7D32"))
-            conditions.text = "To unlock:\n$summary$holdLine"
+            conditions.text = "You can still add to the block lists below. Removing items or changing the unlock rules needs an unlock.\n\nTo unlock:\n$summary$holdLine"
         }
         unlockButton.visibility = if (nowUnlocked) View.GONE else View.VISIBLE
         unlockButton.isEnabled = ok && holdStartedAt == null
@@ -296,6 +314,7 @@ class MainActivity : Activity() {
         if (wasUnlocked != nowUnlocked) {
             editable.forEach { it.isEnabled = nowUnlocked }
             if (!nowUnlocked) loadFields() // throw away unsaved edits when the lock closes
+            saveButton.text = if (nowUnlocked) "Save" else "Save additions"
             wasUnlocked = nowUnlocked
         }
     }

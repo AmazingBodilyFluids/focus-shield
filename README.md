@@ -8,8 +8,8 @@ A small, free Android app that blocks distracting apps and websites (YouTube and
   (`youtube`, `newpipe`, `revanced`, …), so patched or renamed clients are caught.
 - **Blocks websites** by reading the address bar of common browsers (Chrome, Firefox, Brave,
   Samsung Internet, Edge, DuckDuckGo, Opera, Vivaldi and more).
-- **Lock with unlock conditions.** Lists and rules can only be changed while unlocked, and
-  unlocking pauses blocking for a set time (15 min by default). To unlock, all enabled
+- **Lock with unlock conditions.** While locked you can add to the block lists but not remove from them, and the unlock rules are frozen. Unlocking pauses blocking
+  for a set time (15 min by default). To unlock, all enabled
   conditions must be met:
   - charger connected,
   - battery at or above a level (80% by default),

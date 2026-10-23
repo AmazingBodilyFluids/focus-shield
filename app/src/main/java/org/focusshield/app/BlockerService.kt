@@ -43,7 +43,15 @@ class BlockerService : AccessibilityService() {
 
     override fun onInterrupt() {}
 
+    /** Home screens and system UI are never blocked, so a too-broad keyword can't trap the phone. */
+    private val neverBlock: Set<String> by lazy {
+        val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+        packageManager.queryIntentActivities(home, 0).map { it.activityInfo.packageName }.toSet() +
+            setOf("com.android.systemui", "android", "com.android.phone", "com.android.dialer", "com.google.android.dialer")
+    }
+
     private fun isBlockedApp(pkg: String): Boolean {
+        if (pkg in neverBlock) return false
         if (pkg in prefs.blockedApps) return true
         val keywords = prefs.appKeywords
         if (keywords.isEmpty()) return false
@@ -68,18 +76,50 @@ class BlockerService : AccessibilityService() {
         val bar = findUrlBar(root, pkg) ?: return
         // While the address bar has focus the user is still typing, so it isn't a loaded page yet.
         if (bar.isFocused) return
-        val host = hostOf(bar.text?.toString() ?: return) ?: return
+        val host = hostOf(nodeText(bar) ?: return) ?: return
+        prefs.recordLastAddress(pkg, host)
         val hit = siteMatches(host, prefs.blockedSites) ?: return
         block(hit)
     }
 
+    private fun nodeText(n: AccessibilityNodeInfo): String? =
+        n.text?.toString()?.takeIf { it.isNotBlank() }
+            ?: n.contentDescription?.toString()?.takeIf { it.isNotBlank() }
+
     private fun findUrlBar(root: AccessibilityNodeInfo, pkg: String): AccessibilityNodeInfo? {
         for (id in Defaults.URL_BAR_IDS) {
             val found = root.findAccessibilityNodeInfosByViewId("$pkg:id/$id")
-            val withText = found.firstOrNull { !it.text.isNullOrBlank() }
+            val withText = found.firstOrNull { nodeText(it) != null }
             if (withText != null) return withText
         }
-        return null
+        return findUrlBarByScan(root)
+    }
+
+    /**
+     * Fallback for browsers whose toolbar has no known view id (newer Firefox builds draw it
+     * with Jetpack Compose). Walks the browser's own UI, skipping the web page itself, and
+     * prefers a node whose id mentions the address bar, then any text that looks like a URL.
+     */
+    private fun findUrlBarByScan(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        val hints = listOf("url", "address", "omnibox", "location", "toolbar")
+        var looksLikeUrl: AccessibilityNodeInfo? = null
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(root)
+        var visited = 0
+        while (queue.isNotEmpty() && visited < 400) {
+            val n = queue.removeFirst()
+            visited++
+            val cls = n.className?.toString() ?: ""
+            if (cls.contains("WebView") || cls.contains("GeckoView")) continue
+            val text = nodeText(n)
+            if (text != null) {
+                val id = n.viewIdResourceName?.lowercase() ?: ""
+                if (hints.any { id.contains(it) } && hostOf(text) != null) return n
+                if (looksLikeUrl == null && hostOf(text) != null) looksLikeUrl = n
+            }
+            for (i in 0 until n.childCount) n.getChild(i)?.let { queue.add(it) }
+        }
+        return looksLikeUrl
     }
 
     private fun checkInstaller() {
