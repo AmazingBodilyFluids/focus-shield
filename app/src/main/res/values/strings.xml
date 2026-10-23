@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Focus Shield</string>
+    <string name="service_description">Focus Shield watches which app and website is on screen so it can close the ones on your block list. Nothing is stored or sent anywhere.</string>
+    <string name="blocked_reason_protect">Changing Focus Shield while it is locked</string>
+</resources>
