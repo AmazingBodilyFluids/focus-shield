@@ -12,7 +12,7 @@ A small, free Android app that blocks distracting apps and websites (YouTube and
   - the accessibility service reads the address bar of **every installed browser** (found
     automatically) plus in-app browsers, and shows the Blocked screen. Google Translate proxy
     links (`www-youtube-com.translate.goog`) are unwrapped and matched too.
-- **Lock with unlock conditions.** While locked you can add to the block lists but not remove from them, and the unlock rules are frozen. Unlocking pauses blocking
+- **Lock with unlock conditions.** While locked each list shows its items read-only with an Add box: adding works, removing is impossible (no Remove buttons, and storage refuses removals), and the unlock rules are frozen. Unlocking pauses blocking
   for a set time (15 min by default). To unlock, all enabled
   conditions must be met:
   - charger connected,

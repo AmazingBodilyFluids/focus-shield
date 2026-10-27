@@ -38,11 +38,10 @@ class MainActivity : Activity() {
     private lateinit var unlockButton: Button
     private lateinit var lockButton: Button
 
-    private lateinit var appsField: EditText
-    private lateinit var pickAppsButton: Button
-    private lateinit var keywordsField: EditText
-    private lateinit var sitesField: EditText
-    private lateinit var browsersField: EditText
+    private lateinit var appsList: ListSection
+    private lateinit var keywordsList: ListSection
+    private lateinit var sitesList: ListSection
+    private lateinit var browsersList: ListSection
     private lateinit var chargerBox: CheckBox
     private lateinit var batteryField: EditText
     private lateinit var waitField: EditText
@@ -131,26 +130,36 @@ class MainActivity : Activity() {
         }
         col.addView(lockButton)
 
-        col.addView(header("Blocked apps (one package name per line)"))
-        appsField = multiline()
-        col.addView(appsField)
-        pickAppsButton = button("Choose from installed apps") { pickApps() }
-        col.addView(pickAppsButton)
+        appsList = ListSection(
+            "Blocked apps", null, "Package name, e.g. com.example.app", lowercase = false,
+            get = { prefs.blockedApps }, set = { prefs.blockedApps = it },
+        )
+        appsList.addTo(col)
+        col.addView(button("Choose from installed apps") { pickApps() })
 
-        col.addView(header("App name keywords"))
-        col.addView(text("Any app whose name or package contains one of these is blocked too, so renamed or patched YouTube apps are caught.", small = true))
-        keywordsField = multiline()
-        col.addView(keywordsField)
+        keywordsList = ListSection(
+            "App name keywords",
+            "Any app whose name or package contains one of these is blocked too, so renamed or patched YouTube apps are caught.",
+            "Keyword, e.g. tube", lowercase = true,
+            get = { prefs.appKeywords }, set = { prefs.appKeywords = it },
+        )
+        keywordsList.addTo(col)
 
-        col.addView(header("Blocked websites"))
-        col.addView(text("\"youtube.com\" blocks that site and its subdomains. A word without a dot, like \"invidious\", blocks any site with that word in its address.", small = true))
-        sitesField = multiline()
-        col.addView(sitesField)
+        sitesList = ListSection(
+            "Blocked websites",
+            "\"youtube.com\" blocks that site and its subdomains. A word without a dot, like \"invidious\", blocks any site with that word in its address.",
+            "Website, e.g. 9gag.com", lowercase = true,
+            get = { prefs.blockedSites }, set = { prefs.blockedSites = it },
+        )
+        sitesList.addTo(col)
 
-        col.addView(header("Extra browsers to watch"))
-        col.addView(text("Installed browsers are found automatically. Add a package name here only if one is missed.", small = true))
-        browsersField = multiline()
-        col.addView(browsersField)
+        browsersList = ListSection(
+            "Extra browsers to watch",
+            "Installed browsers are found automatically. Add a package name here only if one is missed.",
+            "Package name", lowercase = false,
+            get = { prefs.browsers }, set = { prefs.browsers = it },
+        )
+        browsersList.addTo(col)
 
         col.addView(header("Unlock rules"))
         chargerBox = CheckBox(this).apply { text = "Charger must be connected" }
@@ -169,11 +178,11 @@ class MainActivity : Activity() {
         dnsBox = CheckBox(this).apply { text = "Use the DNS filter" }
         col.addView(dnsBox)
 
-        saveButton = button("Save") { save() }
+        saveButton = button("Save unlock rules") { save() }
         col.addView(saveButton)
 
         // Block lists can always be added to; only the unlock rules need an unlock to change.
-        editable.addAll(listOf(chargerBox, batteryField, waitField, unlockMinutesField, guardBox, dnsBox))
+        editable.addAll(listOf(chargerBox, batteryField, waitField, unlockMinutesField, guardBox, dnsBox, saveButton))
 
         setContentView(ScrollView(this).apply { addView(col) })
     }
@@ -196,13 +205,79 @@ class MainActivity : Activity() {
         setOnClickListener { onClick() }
     }
 
-    private fun multiline() = EditText(this).apply {
-        inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or
-            InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-        minLines = 3
-        maxLines = 10
-        textSize = 14f
-        setTypeface(Typeface.MONOSPACE)
+    /**
+     * One block list: its items as read-only rows plus an Add box. Adding always works;
+     * the Remove buttons only exist while unlocked (and Prefs refuses removals when locked).
+     */
+    private inner class ListSection(
+        private val title: String,
+        private val hint: String?,
+        private val inputHint: String,
+        private val lowercase: Boolean,
+        private val get: () -> Set<String>,
+        private val set: (Set<String>) -> Unit,
+    ) {
+        private val rows = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.VERTICAL }
+        private val lockNote = text("", small = true)
+        private val input = EditText(this@MainActivity).apply {
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            isSingleLine = true
+            this.hint = inputHint
+            textSize = 14f
+        }
+
+        fun addTo(col: LinearLayout) {
+            col.addView(header(title))
+            hint?.let { col.addView(text(it, small = true)) }
+            col.addView(lockNote)
+            col.addView(rows)
+            col.addView(LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                addView(input, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                addView(button("Add") { add() })
+            })
+        }
+
+        private fun add() {
+            val typed = input.text.toString().split(',', ' ', '\n')
+                .map { it.trim().let { t -> if (lowercase) t.lowercase() else t } }
+                .filter { it.isNotEmpty() }
+                .toSet()
+            if (typed.isEmpty()) return
+            val new = typed - get()
+            set(get() + new)
+            input.setText("")
+            render()
+            toast(if (new.isEmpty()) "Already on the list" else "Added: " + new.joinToString(", "))
+        }
+
+        private fun remove(item: String) {
+            if (!prefs.isUnlocked) {
+                toast("Locked: items can't be removed until you unlock")
+            } else {
+                set(get() - item)
+            }
+            render()
+        }
+
+        fun render() {
+            val unlocked = prefs.isUnlocked
+            lockNote.text = if (unlocked) "Unlocked: you can add and remove." else "🔒 Locked: you can add, but not remove."
+            rows.removeAllViews()
+            for (item in get().sortedBy { it.lowercase() }) {
+                rows.addView(LinearLayout(this@MainActivity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    setPadding(0, dp(2), 0, dp(2))
+                    addView(TextView(context).apply {
+                        text = item
+                        textSize = 14f
+                        setTypeface(Typeface.MONOSPACE)
+                    }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                    if (unlocked) addView(button("Remove") { remove(item) })
+                })
+            }
+            if (get().isEmpty()) rows.addView(text("(empty)", small = true))
+        }
     }
 
     private fun number() = EditText(this).apply { inputType = InputType.TYPE_CLASS_NUMBER }
@@ -210,10 +285,7 @@ class MainActivity : Activity() {
     // ---- State ----
 
     private fun loadFields() {
-        appsField.setText(prefs.blockedApps.sorted().joinToString("\n"))
-        keywordsField.setText(prefs.appKeywords.sorted().joinToString("\n"))
-        sitesField.setText(prefs.blockedSites.sorted().joinToString("\n"))
-        browsersField.setText(prefs.browsers.sorted().joinToString("\n"))
+        listOf(appsList, keywordsList, sitesList, browsersList).forEach { it.render() }
         chargerBox.isChecked = prefs.requireCharger
         batteryField.setText(prefs.minBattery.toString())
         waitField.setText(prefs.waitMinutes.toString())
@@ -222,31 +294,11 @@ class MainActivity : Activity() {
         dnsBox.isChecked = prefs.dnsFilter
     }
 
-    private fun lines(f: EditText) =
-        f.text.toString().lines().map { it.trim() }.filter { it.isNotEmpty() }.toSet()
-
     private fun save() {
         if (!prefs.isUnlocked) {
-            // While locked, new entries are added but nothing can be taken off a list.
-            val before = prefs.blockedApps.size + prefs.appKeywords.size + prefs.blockedSites.size + prefs.browsers.size
-            val removed = (prefs.blockedApps - lines(appsField)).size + (prefs.appKeywords - lines(keywordsField)).size +
-                (prefs.blockedSites - lines(sitesField)).size + (prefs.browsers - lines(browsersField)).size
-            prefs.blockedApps = prefs.blockedApps + lines(appsField)
-            prefs.appKeywords = prefs.appKeywords + lines(keywordsField)
-            prefs.blockedSites = prefs.blockedSites + lines(sitesField)
-            prefs.browsers = prefs.browsers + lines(browsersField)
-            val added = prefs.blockedApps.size + prefs.appKeywords.size + prefs.blockedSites.size + prefs.browsers.size - before
-            loadFields()
-            toast(buildString {
-                append("Added $added")
-                if (removed > 0) append(". Removing items needs an unlock, so $removed were kept")
-            })
+            toast("Locked. Unlock first to change the unlock rules.")
             return
         }
-        prefs.blockedApps = lines(appsField)
-        prefs.appKeywords = lines(keywordsField)
-        prefs.blockedSites = lines(sitesField)
-        prefs.browsers = lines(browsersField)
         prefs.requireCharger = chargerBox.isChecked
         prefs.minBattery = batteryField.text.toString().toIntOrNull() ?: 0
         prefs.waitMinutes = waitField.text.toString().toIntOrNull() ?: 0
@@ -332,7 +384,7 @@ class MainActivity : Activity() {
             val left = prefs.unlockedUntil - System.currentTimeMillis()
             lockStatus.text = "Unlocked for ${fmt(left)}. Blocking is paused."
             lockStatus.setTextColor(Color.parseColor("#E65100"))
-            conditions.text = "You can edit your lists and rules now. Remember to save."
+            conditions.text = "You can add and remove list items, and change the unlock rules (remember to save them)."
         } else {
             lockStatus.text = "Locked. Blocking is on."
             lockStatus.setTextColor(Color.parseColor("#2E7D32"))
@@ -344,8 +396,7 @@ class MainActivity : Activity() {
 
         if (wasUnlocked != nowUnlocked) {
             editable.forEach { it.isEnabled = nowUnlocked }
-            if (!nowUnlocked) loadFields() // throw away unsaved edits when the lock closes
-            saveButton.text = if (nowUnlocked) "Save" else "Save additions"
+            loadFields() // shows or hides the Remove buttons, and drops unsaved rule edits
             wasUnlocked = nowUnlocked
         }
     }
@@ -381,21 +432,29 @@ class MainActivity : Activity() {
 
     private fun pickApps() {
         val launcher = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+        val unlocked = prefs.isUnlocked
+        val current = prefs.blockedApps
         val apps = packageManager.queryIntentActivities(launcher, 0)
             .map { it.activityInfo.packageName to it.loadLabel(packageManager).toString() }
             .filter { it.first != packageName }
+            // While locked only unblocked apps are offered, since nothing can be taken off.
+            .filter { unlocked || it.first !in current }
             .distinctBy { it.first }
             .sortedBy { it.second.lowercase() }
-        val current = lines(appsField).toMutableSet()
         val checked = BooleanArray(apps.size) { apps[it].first in current }
         AlertDialog.Builder(this)
-            .setTitle("Block these apps")
+            .setTitle(if (unlocked) "Block these apps" else "Add apps to block")
             .setMultiChoiceItems(apps.map { "${it.second}\n${it.first}" }.toTypedArray(), checked) { _, i, c ->
                 checked[i] = c
             }
             .setPositiveButton("OK") { _, _ ->
-                apps.forEachIndexed { i, a -> if (checked[i]) current.add(a.first) else current.remove(a.first) }
-                appsField.setText(current.sorted().joinToString("\n"))
+                val chosen = apps.filterIndexed { i, _ -> checked[i] }.map { it.first }.toSet()
+                prefs.blockedApps = if (unlocked) {
+                    current - apps.map { it.first }.toSet() + chosen
+                } else {
+                    current + chosen
+                }
+                appsList.render()
             }
             .setNegativeButton("Cancel", null)
             .show()

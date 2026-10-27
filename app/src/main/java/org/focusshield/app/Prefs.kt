@@ -26,20 +26,20 @@ class Prefs(context: Context) {
 
     var blockedApps: Set<String>
         get() = sp.getStringSet(KEY_APPS, emptySet())!!.toSet()
-        set(v) = sp.edit().putStringSet(KEY_APPS, v).apply()
+        set(v) = sp.edit().putStringSet(KEY_APPS, addOnlyWhileLocked(blockedApps, v)).apply()
 
     /** Matched against package names and app labels, so renamed/patched clients are caught too. */
     var appKeywords: Set<String>
         get() = sp.getStringSet(KEY_KEYWORDS, emptySet())!!.toSet()
-        set(v) = sp.edit().putStringSet(KEY_KEYWORDS, v).apply()
+        set(v) = sp.edit().putStringSet(KEY_KEYWORDS, addOnlyWhileLocked(appKeywords, v)).apply()
 
     var blockedSites: Set<String>
         get() = sp.getStringSet(KEY_SITES, emptySet())!!.toSet()
-        set(v) = sp.edit().putStringSet(KEY_SITES, v).apply()
+        set(v) = sp.edit().putStringSet(KEY_SITES, addOnlyWhileLocked(blockedSites, v)).apply()
 
     var browsers: Set<String>
         get() = sp.getStringSet(KEY_BROWSERS, emptySet())!!.toSet()
-        set(v) = sp.edit().putStringSet(KEY_BROWSERS, v).apply()
+        set(v) = sp.edit().putStringSet(KEY_BROWSERS, addOnlyWhileLocked(browsers, v)).apply()
 
     var requireCharger: Boolean
         get() = sp.getBoolean(KEY_REQ_CHARGER, true)
@@ -82,6 +82,10 @@ class Prefs(context: Context) {
         val v = "$host  ($browser)"
         if (v != lastAddress) sp.edit().putString(KEY_LAST_ADDRESS, v).apply()
     }
+
+    /** While locked a list can only grow: anything missing from the new value is kept. */
+    private fun addOnlyWhileLocked(old: Set<String>, new: Set<String>): Set<String> =
+        if (isUnlocked) new else old + new
 
     val isUnlocked: Boolean
         get() = System.currentTimeMillis() < unlockedUntil
