@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.Browser
 import android.os.SystemClock
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -22,10 +23,17 @@ class BlockerService : AccessibilityService() {
     private var browserCacheAt = 0L
     private var lastDnsCheckAt = 0L
     private val handler = Handler(Looper.getMainLooper())
+    private val blockedPage = BlockedPageServer()
 
     override fun onServiceConnected() {
         prefs = Prefs(this)
+        blockedPage.start()
         DnsVpnService.ensureRunning(this)
+    }
+
+    override fun onDestroy() {
+        blockedPage.stop()
+        super.onDestroy()
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
@@ -147,16 +155,36 @@ class BlockerService : AccessibilityService() {
         val host = hostOf(nodeText(bar) ?: return) ?: return
         prefs.recordLastAddress(pkg, host)
         val hit = siteMatches(host, prefs.blockedSites) ?: return
-        blockTab(bar, hit)
+        blockTab(pkg, bar, hit)
     }
 
     /**
-     * Sends the tab to about:blank by typing into the address bar, then shows the Blocked
-     * screen. Closing the whole browser instead would loop: reopening it restores the
-     * blocked tab, which closes the browser again before the tab can be closed.
+     * Opens the "Blocked by Focus Shield" page in the same browser, so the browser stays
+     * usable. Chrome-based browsers load it in the current tab when the request carries their
+     * own package as the app id; others open it in a new tab, which then becomes the visible one.
+     * Closing the browser instead would loop: reopening it restores the blocked tab.
      */
-    private fun blockTab(bar: AccessibilityNodeInfo, what: String) {
+    private fun blockTab(pkg: String, bar: AccessibilityNodeInfo, what: String) {
         lastBlockAt = SystemClock.uptimeMillis()
+        blockedPage.start()
+        val opened = blockedPage.isRunning && try {
+            startActivity(
+                Intent(Intent.ACTION_VIEW, Uri.parse(BlockedPageServer.urlFor(what)))
+                    .setPackage(pkg)
+                    .addCategory(Intent.CATEGORY_BROWSABLE)
+                    .putExtra(Browser.EXTRA_APPLICATION_ID, pkg)
+                    .putExtra("create_new_tab", false)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+            true
+        } catch (e: Exception) {
+            false
+        }
+        if (!opened) typeBlankOrLeave(bar, what)
+    }
+
+    /** Fallback when the page can't be opened: type about:blank into the address bar. */
+    private fun typeBlankOrLeave(bar: AccessibilityNodeInfo, what: String) {
         if (Build.VERSION.SDK_INT < 30 || (!bar.isEditable && !clickNodeOrParent(bar))) {
             block(what)
             return
