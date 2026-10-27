@@ -67,6 +67,7 @@ object Defaults {
         "com.google.android.settings.intelligence",
         "com.samsung.android.lool",
         "com.miui.securitycenter",
+        "com.android.vpndialogs",
     )
 
     val INSTALLER_PACKAGES = setOf(

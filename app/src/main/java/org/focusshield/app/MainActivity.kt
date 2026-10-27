@@ -6,6 +6,7 @@ import android.content.ComponentName
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
+import android.net.VpnService
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -29,6 +30,9 @@ class MainActivity : Activity() {
     private lateinit var serviceStatus: TextView
     private lateinit var serviceButton: Button
     private lateinit var lastAddress: TextView
+    private lateinit var dnsStatus: TextView
+    private lateinit var dnsButton: Button
+    private lateinit var dnsBox: CheckBox
     private lateinit var lockStatus: TextView
     private lateinit var conditions: TextView
     private lateinit var unlockButton: Button
@@ -101,6 +105,18 @@ class MainActivity : Activity() {
         lastAddress = text("", small = true)
         col.addView(lastAddress)
 
+        col.addView(header("DNS filter"))
+        col.addView(text(
+            "Stops the blocked websites loading in every browser and app, including ones Focus Shield " +
+                "can't see. Android shows it as a VPN, but only website name lookups go through it and " +
+                "nothing leaves your phone except normal lookups. Tip: in Settings → VPN → Focus Shield, " +
+                "turn on \"Always-on VPN\" (leave \"Block connections without VPN\" off).", small = true
+        ))
+        dnsStatus = text("")
+        col.addView(dnsStatus)
+        dnsButton = button("Turn on DNS filter") { startDnsFilter() }
+        col.addView(dnsButton)
+
         col.addView(header("Lock"))
         lockStatus = text("").apply { textSize = 18f; setTypeface(typeface, Typeface.BOLD) }
         col.addView(lockStatus)
@@ -131,7 +147,8 @@ class MainActivity : Activity() {
         sitesField = multiline()
         col.addView(sitesField)
 
-        col.addView(header("Browsers to watch (package names)"))
+        col.addView(header("Extra browsers to watch"))
+        col.addView(text("Installed browsers are found automatically. Add a package name here only if one is missed.", small = true))
         browsersField = multiline()
         col.addView(browsersField)
 
@@ -149,12 +166,14 @@ class MainActivity : Activity() {
         col.addView(unlockMinutesField)
         guardBox = CheckBox(this).apply { text = "While locked, stop Focus Shield being switched off or uninstalled" }
         col.addView(guardBox)
+        dnsBox = CheckBox(this).apply { text = "Use the DNS filter" }
+        col.addView(dnsBox)
 
         saveButton = button("Save") { save() }
         col.addView(saveButton)
 
         // Block lists can always be added to; only the unlock rules need an unlock to change.
-        editable.addAll(listOf(chargerBox, batteryField, waitField, unlockMinutesField, guardBox))
+        editable.addAll(listOf(chargerBox, batteryField, waitField, unlockMinutesField, guardBox, dnsBox))
 
         setContentView(ScrollView(this).apply { addView(col) })
     }
@@ -200,6 +219,7 @@ class MainActivity : Activity() {
         waitField.setText(prefs.waitMinutes.toString())
         unlockMinutesField.setText(prefs.unlockMinutes.toString())
         guardBox.isChecked = prefs.guardSettings
+        dnsBox.isChecked = prefs.dnsFilter
     }
 
     private fun lines(f: EditText) =
@@ -232,6 +252,8 @@ class MainActivity : Activity() {
         prefs.waitMinutes = waitField.text.toString().toIntOrNull() ?: 0
         prefs.unlockMinutes = unlockMinutesField.text.toString().toIntOrNull() ?: 15
         prefs.guardSettings = guardBox.isChecked
+        prefs.dnsFilter = dnsBox.isChecked
+        if (prefs.dnsFilter) DnsVpnService.ensureRunning(this) else DnsVpnService.stop(this)
         loadFields()
         toast("Saved")
     }
@@ -272,6 +294,15 @@ class MainActivity : Activity() {
         val on = isServiceEnabled()
         serviceStatus.text = if (on) "✓ Running" else "✗ Off. Blocking won't work until you turn on Focus Shield in Accessibility settings."
         serviceStatus.setTextColor(if (on) Color.parseColor("#2E7D32") else Color.RED)
+
+        val dnsOn = DnsVpnService.running
+        dnsStatus.text = when {
+            !prefs.dnsFilter -> "Switched off in the unlock rules."
+            dnsOn -> "✓ Running"
+            else -> "✗ Not running. Tap the button below and allow the connection request."
+        }
+        dnsStatus.setTextColor(if (dnsOn || !prefs.dnsFilter) Color.parseColor("#2E7D32") else Color.RED)
+        dnsButton.visibility = if (prefs.dnsFilter && !dnsOn) View.VISIBLE else View.GONE
 
         val seen = prefs.lastAddress
         lastAddress.text = "Last website address read from a browser: " + seen.ifEmpty { "none yet" }
@@ -319,6 +350,22 @@ class MainActivity : Activity() {
         }
     }
 
+    /** Turning the filter on only makes blocking stricter, so it's allowed while locked. */
+    private fun startDnsFilter() {
+        val consent = VpnService.prepare(this)
+        if (consent != null) {
+            startActivityForResult(consent, REQ_VPN)
+        } else {
+            DnsVpnService.ensureRunning(this)
+        }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQ_VPN && resultCode == RESULT_OK) DnsVpnService.ensureRunning(this)
+    }
+
     private fun fmt(ms: Long): String {
         val s = (ms / 1000).coerceAtLeast(0)
         return "%d:%02d".format(s / 60, s % 60)
@@ -355,4 +402,8 @@ class MainActivity : Activity() {
     }
 
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
+
+    companion object {
+        private const val REQ_VPN = 1
+    }
 }

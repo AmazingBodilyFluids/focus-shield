@@ -61,6 +61,11 @@ class Prefs(context: Context) {
         set(v) = sp.edit().putInt(KEY_UNLOCK_MINUTES, v.coerceIn(1, 24 * 60)).apply()
 
     /** Stops the app being switched off or uninstalled through Settings while locked. */
+    /** Also answer DNS lookups for blocked sites with "no such site", so they fail in every app. */
+    var dnsFilter: Boolean
+        get() = sp.getBoolean(KEY_DNS_FILTER, true)
+        set(v) = sp.edit().putBoolean(KEY_DNS_FILTER, v).apply()
+
     var guardSettings: Boolean
         get() = sp.getBoolean(KEY_GUARD, true)
         set(v) = sp.edit().putBoolean(KEY_GUARD, v).apply()
@@ -101,6 +106,7 @@ class Prefs(context: Context) {
         private const val KEY_GUARD = "guard_settings"
         private const val KEY_UNLOCKED_UNTIL = "unlocked_until"
         private const val KEY_LAST_ADDRESS = "last_address"
+        private const val KEY_DNS_FILTER = "dns_filter"
     }
 }
 
@@ -126,12 +132,32 @@ fun hostOf(urlText: String): String? {
     return if (s.contains('.')) s.removePrefix("www.") else null
 }
 
+/** True for things like "9gag.com" or "m.youtube.com", false for "v1.2" or plain words. */
+fun looksLikeHost(host: String): Boolean {
+    val tld = host.substringAfterLast('.', "")
+    return tld.length >= 2 && tld.all { it in 'a'..'z' } && host.all { it.isLetterOrDigit() || it == '.' || it == '-' }
+}
+
+/**
+ * Google Translate's proxy serves www.youtube.com as www-youtube-com.translate.goog,
+ * which would otherwise slip past a domain entry.
+ */
+private fun unwrapProxy(host: String): String? {
+    if (!host.endsWith(".translate.goog")) return null
+    return host.removeSuffix(".translate.goog").replace("--", "\u0000").replace('-', '.').replace('\u0000', '-')
+}
+
 /** "youtube.com" matches the domain and its subdomains; an entry without a dot matches anywhere in the host. */
-fun siteMatches(host: String, sites: Set<String>): String? = sites.firstOrNull { raw ->
-    val e = raw.trim().lowercase().removePrefix("www.")
-    when {
-        e.isEmpty() -> false
-        e.contains('.') -> host == e || host.endsWith(".$e")
-        else -> host.contains(e)
+fun siteMatches(host: String, sites: Set<String>): String? {
+    val hosts = listOfNotNull(host.removeSuffix(".").removePrefix("www."), unwrapProxy(host)?.removePrefix("www."))
+    return sites.firstOrNull { raw ->
+        val e = raw.trim().lowercase().removePrefix("www.")
+        hosts.any { h ->
+            when {
+                e.isEmpty() -> false
+                e.contains('.') -> h == e || h.endsWith(".$e")
+                else -> h.contains(e)
+            }
+        }
     }
 }

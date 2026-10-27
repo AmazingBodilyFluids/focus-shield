@@ -2,6 +2,8 @@ package org.focusshield.app
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.SystemClock
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -12,9 +14,13 @@ class BlockerService : AccessibilityService() {
     private val labelCache = HashMap<String, String>()
     private var lastCheckAt = 0L
     private var lastBlockAt = 0L
+    private var browserCache: Set<String> = emptySet()
+    private var browserCacheAt = 0L
+    private var lastDnsCheckAt = 0L
 
     override fun onServiceConnected() {
         prefs = Prefs(this)
+        DnsVpnService.ensureRunning(this)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
@@ -24,6 +30,11 @@ class BlockerService : AccessibilityService() {
 
         val now = SystemClock.uptimeMillis()
         if (now - lastBlockAt < 1500) return
+        if (now - lastDnsCheckAt > 60_000) {
+            // Restart the DNS filter if Android stopped it.
+            lastDnsCheckAt = now
+            DnsVpnService.ensureRunning(this)
+        }
 
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && isBlockedApp(pkg)) {
             block(appLabel(pkg))
@@ -35,9 +46,10 @@ class BlockerService : AccessibilityService() {
         lastCheckAt = now
 
         when {
-            pkg in prefs.browsers -> checkBrowser(pkg)
             prefs.guardSettings && pkg in Defaults.INSTALLER_PACKAGES -> checkInstaller()
             prefs.guardSettings && pkg in Defaults.SETTINGS_PACKAGES -> checkSettings()
+            pkg in prefs.browsers || pkg in installedBrowsers() -> checkBrowser(pkg)
+            pkg !in neverBlock -> checkInAppBrowser(pkg)
         }
     }
 
@@ -48,6 +60,55 @@ class BlockerService : AccessibilityService() {
         val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
         packageManager.queryIntentActivities(home, 0).map { it.activityInfo.packageName }.toSet() +
             setOf("com.android.systemui", "android", "com.android.phone", "com.android.dialer", "com.google.android.dialer")
+    }
+
+    /** Every installed app that can open a web link, so new or unusual browsers are covered too. */
+    private fun installedBrowsers(): Set<String> {
+        val now = SystemClock.uptimeMillis()
+        if (browserCacheAt == 0L || now - browserCacheAt > 5 * 60_000L) {
+            val view = Intent(Intent.ACTION_VIEW, Uri.parse("http://example.com")).addCategory(Intent.CATEGORY_BROWSABLE)
+            browserCache = packageManager.queryIntentActivities(view, PackageManager.MATCH_ALL)
+                .map { it.activityInfo.packageName }.toSet() - packageName
+            browserCacheAt = now
+        }
+        return browserCache
+    }
+
+    /**
+     * Apps with a built-in browser (Telegram, Reddit, the Google app...) usually print the
+     * site's address in their own toolbar above the page. Only checked when a web page is on
+     * screen, and the page content itself is skipped, so a link in a chat doesn't count.
+     */
+    private fun checkInAppBrowser(pkg: String) {
+        val root = rootInActiveWindow ?: return
+        if (root.packageName?.toString() != pkg) return
+        var hasWeb = false
+        val hosts = ArrayList<String>()
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(root)
+        var visited = 0
+        while (queue.isNotEmpty() && visited < 400) {
+            val n = queue.removeFirst()
+            visited++
+            val cls = n.className?.toString() ?: ""
+            if (cls.contains("WebView") || cls.contains("GeckoView")) {
+                hasWeb = true
+                continue
+            }
+            val text = nodeText(n)
+            if (text != null && !text.contains('@')) {
+                hostOf(text)?.takeIf { looksLikeHost(it) }?.let { hosts.add(it) }
+            }
+            for (i in 0 until n.childCount) n.getChild(i)?.let { queue.add(it) }
+        }
+        if (!hasWeb) return
+        val sites = prefs.blockedSites
+        for (h in hosts) {
+            val hit = siteMatches(h, sites) ?: continue
+            prefs.recordLastAddress(pkg, h)
+            block(hit)
+            return
+        }
     }
 
     private fun isBlockedApp(pkg: String): Boolean {
@@ -142,7 +203,11 @@ class BlockerService : AccessibilityService() {
         // Only screens that can switch Focus Shield off: its own accessibility page (which has
         // "Use Focus Shield" / "Focus Shield shortcut"), the stop/turn-off confirmation, and
         // its App info page. Lists that merely mention it, like the Accessibility menu, stay usable.
-        val ownPage = listOf("use $name", "$name shortcut", "stop $name", "turn off $name")
+        val ownPage = listOf(
+            "use $name", "$name shortcut", "stop $name", "turn off $name",
+            // VPN details page and the disconnect dialog for the DNS filter
+            "forget vpn", "always-on vpn", "disconnect",
+        )
         val appInfo = listOf("uninstall", "force stop", "clear storage", "clear data")
         if (texts.any { t -> ownPage.any { t.contains(it) } } ||
             texts.any { t -> appInfo.any { t.contains(it) } }

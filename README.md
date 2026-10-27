@@ -6,8 +6,12 @@ A small, free Android app that blocks distracting apps and websites (YouTube and
 
 - **Blocks apps** by package name, plus any app whose name or package contains a keyword
   (`youtube`, `newpipe`, `revanced`, …), so patched or renamed clients are caught.
-- **Blocks websites** by reading the address bar of common browsers (Chrome, Firefox, Brave,
-  Samsung Internet, Edge, DuckDuckGo, Opera, Vivaldi and more).
+- **Blocks websites** in two layers:
+  - a **DNS filter** (a local VPN that only carries name lookups) answers "no such site" for
+    blocked domains, so they fail to load in every browser and app;
+  - the accessibility service reads the address bar of **every installed browser** (found
+    automatically) plus in-app browsers, and shows the Blocked screen. Google Translate proxy
+    links (`www-youtube-com.translate.goog`) are unwrapped and matched too.
 - **Lock with unlock conditions.** While locked you can add to the block lists but not remove from them, and the unlock rules are frozen. Unlocking pauses blocking
   for a set time (15 min by default). To unlock, all enabled
   conditions must be met:
@@ -33,8 +37,13 @@ New builds install over the old one and keep your settings.
 ## Limits
 
 No phone-side blocker is unbreakable. Booting into safe mode disables it, and the
-self-protection only recognises English Settings screens. Browsers not in the list are not
-watched; add their package name under "Browsers to watch".
+self-protection only recognises English Settings screens.
+
+The DNS filter can be bypassed by a browser using its own encrypted DNS (Firefox "DNS over
+HTTPS" at Increased/Max protection, or Android "Private DNS" set to a hostname), by another
+VPN app taking over the VPN slot, or by a web proxy/VPN site. The address-bar check still
+catches most of those cases in browsers. Turn on Always-on VPN for Focus Shield, but leave
+"Block connections without VPN" off, since only DNS goes through the tunnel.
 
 ## Building
 
