@@ -4,6 +4,10 @@ import android.accessibilityservice.AccessibilityService
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -17,6 +21,7 @@ class BlockerService : AccessibilityService() {
     private var browserCache: Set<String> = emptySet()
     private var browserCacheAt = 0L
     private var lastDnsCheckAt = 0L
+    private val handler = Handler(Looper.getMainLooper())
 
     override fun onServiceConnected() {
         prefs = Prefs(this)
@@ -106,7 +111,9 @@ class BlockerService : AccessibilityService() {
         for (h in hosts) {
             val hit = siteMatches(h, sites) ?: continue
             prefs.recordLastAddress(pkg, h)
-            block(hit)
+            lastBlockAt = SystemClock.uptimeMillis()
+            performGlobalAction(GLOBAL_ACTION_BACK)
+            showBlocked(hit)
             return
         }
     }
@@ -140,7 +147,47 @@ class BlockerService : AccessibilityService() {
         val host = hostOf(nodeText(bar) ?: return) ?: return
         prefs.recordLastAddress(pkg, host)
         val hit = siteMatches(host, prefs.blockedSites) ?: return
-        block(hit)
+        blockTab(bar, hit)
+    }
+
+    /**
+     * Sends the tab to about:blank by typing into the address bar, then shows the Blocked
+     * screen. Closing the whole browser instead would loop: reopening it restores the
+     * blocked tab, which closes the browser again before the tab can be closed.
+     */
+    private fun blockTab(bar: AccessibilityNodeInfo, what: String) {
+        lastBlockAt = SystemClock.uptimeMillis()
+        if (Build.VERSION.SDK_INT < 30 || (!bar.isEditable && !clickNodeOrParent(bar))) {
+            block(what)
+            return
+        }
+        handler.postDelayed({
+            val input = rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+            // Some browsers keep the address bar editable in place; others open a separate edit box.
+            val sent = typeBlank(input) || typeBlank(bar)
+            lastBlockAt = SystemClock.uptimeMillis()
+            if (sent) handler.postDelayed({ showBlocked(what) }, 600) else block(what)
+        }, 400)
+    }
+
+    private fun typeBlank(input: AccessibilityNodeInfo?): Boolean {
+        if (input == null || !input.isEditable) return false
+        val args = Bundle().apply {
+            putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "about:blank")
+        }
+        return input.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args) &&
+            input.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id)
+    }
+
+    private fun clickNodeOrParent(node: AccessibilityNodeInfo): Boolean {
+        var n: AccessibilityNodeInfo? = node
+        var depth = 0
+        while (n != null && depth < 5) {
+            if (n.isClickable && n.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true
+            n = n.parent
+            depth++
+        }
+        return false
     }
 
     private fun nodeText(n: AccessibilityNodeInfo): String? =
@@ -234,6 +281,10 @@ class BlockerService : AccessibilityService() {
     private fun block(what: String) {
         lastBlockAt = SystemClock.uptimeMillis()
         performGlobalAction(GLOBAL_ACTION_HOME)
+        showBlocked(what)
+    }
+
+    private fun showBlocked(what: String) {
         startActivity(
             Intent(this, BlockedActivity::class.java)
                 .putExtra(BlockedActivity.EXTRA_WHAT, what)
