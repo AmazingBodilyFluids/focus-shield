@@ -23,7 +23,7 @@ class BlockerService : AccessibilityService() {
     private var browserCacheAt = 0L
     private var lastDnsCheckAt = 0L
     private val handler = Handler(Looper.getMainLooper())
-    private val blockedPage = BlockedPageServer()
+    private val blockedPage = BlockedPageServer { Prefs(this).randomLine() }
 
     override fun onServiceConnected() {
         prefs = Prefs(this)
@@ -159,7 +159,7 @@ class BlockerService : AccessibilityService() {
     }
 
     /**
-     * Opens the "Blocked by Focus Shield" page in the same browser, so the browser stays
+     * Opens the "Blocked by Threshold" page in the same browser, so the browser stays
      * usable. Chrome-based browsers load it in the current tab when the request carries their
      * own package as the app id; others open it in a new tab, which then becomes the visible one.
      * Closing the browser instead would loop: reopening it restores the blocked tab.
@@ -275,8 +275,8 @@ class BlockerService : AccessibilityService() {
         val texts = collectTexts(root).map { it.lowercase() }
         val name = getString(R.string.app_name).lowercase()
         if (texts.none { it.contains(name) }) return
-        // Only screens that can switch Focus Shield off: its own accessibility page (which has
-        // "Use Focus Shield" / "Focus Shield shortcut"), the stop/turn-off confirmation, and
+        // Only screens that can switch Threshold off: its own accessibility page (which has
+        // "Use Threshold" / "Threshold shortcut"), the stop/turn-off confirmation, and
         // its App info page. Lists that merely mention it, like the Accessibility menu, stay usable.
         val ownPage = listOf(
             "use $name", "$name shortcut", "stop $name", "turn off $name",

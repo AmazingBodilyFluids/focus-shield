@@ -27,6 +27,28 @@ object Defaults {
         "com.kapp.youtube.final",
     )
 
+    /** What the Guardian says on a block screen. One is picked at random each time. */
+    val BLOCK_LINES = listOf(
+        "Hehe, hoho, N-O!",
+        "Denied.",
+        "This piggy went the wrong way.",
+        "Refresh the page 20-ish times, maybe it'll work.",
+        "Error 418: I'm an ogre.",
+        "Nice try. The Guardian saw that.",
+        "Request received. Request laughed at.",
+        "Closed for your own good. Opening hours: never.",
+        "Have you tried, hear me out, not watching that?",
+        "Nope. Not today. Probably not tomorrow either.",
+        "The Guardian ate this page. It tasted of wasted afternoons.",
+        "Plug in your charger and think about what you've done.",
+        "Your future self says thanks. Grudgingly.",
+        "Loading\u2026 just kidding.",
+        "This little piggy stays home.",
+        "Zero videos found. Zero regrets.",
+        "Go touch some grass. I'll guard the door.",
+        "Knock knock. Who's there? Not you.",
+    )
+
     val APP_KEYWORDS = setOf("youtube", "newpipe", "revanced", "tubular", "libretube", "pipepipe")
 
     val SITES = setOf(
