@@ -70,6 +70,23 @@ class Prefs(context: Context) {
         get() = sp.getBoolean(KEY_GUARD, true)
         set(v) = sp.edit().putBoolean(KEY_GUARD, v).apply()
 
+    /** Every block-screen line, including ones the user wrote. */
+    var blockLines: List<String>
+        get() = sp.getString(KEY_LINES, null)?.split(LINE_SEP)?.filter { it.isNotBlank() } ?: Defaults.BLOCK_LINES
+        set(v) = sp.edit().putString(KEY_LINES, v.joinToString(LINE_SEP)).apply()
+
+    /** Lines switched off in the Block screens card. */
+    var linesOff: Set<String>
+        get() = sp.getStringSet(KEY_LINES_OFF, emptySet())!!.toSet()
+        set(v) = sp.edit().putStringSet(KEY_LINES_OFF, v).apply()
+
+    /** A random line from the ones switched on, avoiding [not] when there is a choice. */
+    fun randomLine(not: String? = null): String {
+        val on = blockLines.filter { it !in linesOff }.ifEmpty { listOf("Denied.") }
+        val pool = on.filter { it != not }.ifEmpty { on }
+        return pool.random()
+    }
+
     var unlockedUntil: Long
         get() = sp.getLong(KEY_UNLOCKED_UNTIL, 0L)
         set(v) = sp.edit().putLong(KEY_UNLOCKED_UNTIL, v).apply()
@@ -111,6 +128,9 @@ class Prefs(context: Context) {
         private const val KEY_UNLOCKED_UNTIL = "unlocked_until"
         private const val KEY_LAST_ADDRESS = "last_address"
         private const val KEY_DNS_FILTER = "dns_filter"
+        private const val KEY_LINES = "block_lines"
+        private const val KEY_LINES_OFF = "block_lines_off"
+        private const val LINE_SEP = "\u001F"
     }
 }
 

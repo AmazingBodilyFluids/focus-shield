@@ -1,4 +1,4 @@
-# Focus Shield
+# Threshold
 
 A small, free Android app that blocks distracting apps and websites (YouTube and its front ends by default).
 
@@ -14,23 +14,29 @@ A small, free Android app that blocks distracting apps and websites (YouTube and
     links (`www-youtube-com.translate.goog`) are unwrapped and matched too.
 - **Lock with unlock conditions.** While locked each list shows its items read-only with an Add box: adding works, removing is impossible (no Remove buttons, and storage refuses removals), and the unlock rules are frozen. Unlocking pauses blocking
   for a set time (15 min by default). To unlock, all enabled
-  conditions must be met:
+  conditions must be met, and then the **Guardian** (the 👹 ogre in the middle of the main
+  screen) has to be slid off the threshold with 6 separate long strokes. Each stroke breaks a
+  seal; pause for a few seconds and a seal re-forms. Tap the Guardian to lock again early.
+  The conditions are:
   - charger connected,
   - battery at or above a level (80% by default),
   - optionally, those held for N minutes with the app open (unplugging resets the countdown).
+- **Block screens.** Blocked apps and browser tabs land on a screen where the Guardian says
+  something cheeky, picked at random ("Hehe, hoho, N-O!", "Error 418: I'm an ogre.", …).
+  Lines can be switched off or added in the **Block screens** card.
 - **Self-protection.** While locked, the Accessibility toggle page, App info page and the
-  uninstall dialog for Focus Shield are closed as soon as they open.
+  uninstall dialog for Threshold are closed as soon as they open.
 
 The first 30 minutes after install are unlocked so you can set it up.
 
 ## Install
 
-1. Download the newest `FocusShield-N.apk` from the repo's **Releases** page on your phone.
+1. Download the newest `Threshold-N.apk` from the repo's **Releases** page on your phone.
 2. Open it and allow installing from your browser/files app when asked.
-3. Open Focus Shield and tap **Open Accessibility settings**, then turn on Focus Shield.
+3. Open Threshold and tap **Open Accessibility settings**, then turn on Threshold.
    On Android 13+ this may be greyed out as a "restricted setting": go to
-   Settings → Apps → Focus Shield → ⋮ → **Allow restricted settings**, then try again.
-4. Edit your lists, set your unlock rules, tap **Save**, then **Lock now**.
+   Settings → Apps → Threshold → ⋮ → **Allow restricted settings**, then try again.
+4. Edit your lists, set your unlock rules, tap **Save unlock rules**, then tap the Guardian to lock.
 
 New builds install over the old one and keep your settings.
 
@@ -42,10 +48,11 @@ self-protection only recognises English Settings screens.
 The DNS filter can be bypassed by a browser using its own encrypted DNS (Firefox "DNS over
 HTTPS" at Increased/Max protection, or Android "Private DNS" set to a hostname), by another
 VPN app taking over the VPN slot, or by a web proxy/VPN site. The address-bar check still
-catches most of those cases in browsers. Turn on Always-on VPN for Focus Shield, but leave
+catches most of those cases in browsers. Turn on Always-on VPN for Threshold, but leave
 "Block connections without VPN" off, since only DNS goes through the tunnel.
 
 ## Building
 
-Every push to `main` builds a signed APK with GitHub Actions. Locally: install JDK 17 and the
+Every push to `main` builds a signed APK with GitHub Actions and publishes it as a release.
+Pull requests are built too (the APK is attached to the workflow run, no release). Locally: install JDK 17 and the
 Android SDK, then run `./gradlew assembleRelease`.

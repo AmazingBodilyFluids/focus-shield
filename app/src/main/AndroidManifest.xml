@@ -26,9 +26,10 @@
 
     <application
         android:allowBackup="false"
-        android:icon="@drawable/ic_shield"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher"
         android:label="@string/app_name"
-        android:theme="@android:style/Theme.DeviceDefault.Light.DarkActionBar">
+        android:theme="@style/Threshold">
 
         <activity
             android:name=".MainActivity"
@@ -44,7 +45,8 @@
             android:excludeFromRecents="true"
             android:exported="false"
             android:launchMode="singleTask"
-            android:taskAffinity="org.focusshield.app.blocked" />
+            android:taskAffinity="org.focusshield.app.blocked"
+            android:theme="@style/Threshold.Blocked" />
 
         <service
             android:name=".BlockerService"
