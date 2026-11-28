@@ -753,6 +753,11 @@ class MainActivity : Activity() {
 
         val unlocked = prefs.isUnlocked
         when {
+            prefs.isSetup -> {
+                // Fresh install: the Guardian is off until it is first dragged into place.
+                guardian.show(GuardianView.Phase.UNLOCKED, 0f, "Off", "Drag the Guardian in to lock")
+                setBadge("Not locked yet", Ui.GOLD)
+            }
             unlocked -> {
                 val left = prefs.unlockedUntil - System.currentTimeMillis()
                 val total = prefs.unlockMinutes * 60_000f

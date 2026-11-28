@@ -13,13 +13,13 @@ class Prefs(context: Context) {
 
     init {
         if (!sp.contains(KEY_APPS)) {
-            // First run: load the defaults and give a setup window so the lists can be edited.
+            // First run: load the defaults and start with the Guardian off (see [isSetup]).
             sp.edit()
                 .putStringSet(KEY_APPS, Defaults.APPS)
                 .putStringSet(KEY_KEYWORDS, Defaults.APP_KEYWORDS)
                 .putStringSet(KEY_SITES, Defaults.SITES)
                 .putStringSet(KEY_BROWSERS, Defaults.BROWSERS)
-                .putLong(KEY_UNLOCKED_UNTIL, System.currentTimeMillis() + 30 * 60_000L)
+                .putLong(KEY_UNLOCKED_UNTIL, SETUP)
                 .apply()
         }
     }
@@ -142,6 +142,14 @@ class Prefs(context: Context) {
     val isUnlocked: Boolean
         get() = System.currentTimeMillis() < unlockedUntil
 
+    /**
+     * True from install until the Guardian is first dragged into place. Nothing is blocked or
+     * guarded and there is no countdown, so the Accessibility and App info pages can be used in
+     * peace while the app is being set up.
+     */
+    val isSetup: Boolean
+        get() = unlockedUntil == SETUP
+
     fun lockNow() {
         unlockedUntil = 0L
     }
@@ -151,6 +159,8 @@ class Prefs(context: Context) {
     }
 
     companion object {
+        /** [unlockedUntil] on a fresh install: unlocked with no end. */
+        private const val SETUP = Long.MAX_VALUE
         private const val KEY_APPS = "apps"
         private const val KEY_KEYWORDS = "app_keywords"
         private const val KEY_SITES = "sites"
