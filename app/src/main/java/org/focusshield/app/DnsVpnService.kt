@@ -134,7 +134,7 @@ class DnsVpnService : VpnService() {
         val query = p.copyOfRange(ihl + 8, p.size)
 
         val name = questionName(query)
-        if (name != null && !prefs.isUnlocked && siteMatches(name, prefs.blockedSites) != null) {
+        if (name != null && !prefs.isUnlocked && prefs.blockedSiteFor(name, dns = true) != null) {
             reply(dst, src, srcPort, blockedAnswer(query))
             return
         }

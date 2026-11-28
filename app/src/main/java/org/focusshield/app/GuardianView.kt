@@ -24,7 +24,8 @@ import kotlin.math.sin
  * The Guardian of the Threshold: an ogre mask sitting in a ring. While locked it has to be
  * slid off its place with [NEEDED] separate long strokes, each one breaking a seal. Seals
  * re-form if the strokes stop. Moving it only works while [canMove] says the unlock
- * conditions are met.
+ * conditions are met. While the threshold is open the Guardian sits parked aside; dragging it
+ * back onto its place locks again.
  */
 class GuardianView(context: Context) : View(context) {
 
@@ -36,7 +37,8 @@ class GuardianView(context: Context) : View(context) {
     var onTooGentle: () -> Unit = {}
     var onStroke: (Int) -> Unit = {}
     var onReleased: () -> Unit = {}
-    var onTapWhileOpen: () -> Unit = {}
+    /** The Guardian was carried back onto its place while the threshold was open. */
+    var onReturned: () -> Unit = {}
 
     var phase = Phase.LOCKED
         private set
@@ -59,6 +61,8 @@ class GuardianView(context: Context) : View(context) {
     private var downX = 0f
     private var downY = 0f
     private var dragging = false
+    /** The parked Guardian is being carried back by a finger. */
+    private var returning = false
     private var travelled = 0f
     private var lastDx = 0f
     private var lastDy = 0f
@@ -90,7 +94,7 @@ class GuardianView(context: Context) : View(context) {
 
     init {
         isClickable = true
-        contentDescription = "Guardian. Slide it off the threshold with firm strokes to unlock."
+        contentDescription = "Guardian. Slide it off the threshold with firm strokes to unlock. Drag it back to lock."
     }
 
     override fun onAttachedToWindow() {
@@ -189,6 +193,8 @@ class GuardianView(context: Context) : View(context) {
                         shake(); onRefused(reason); return true
                     }
                     dragging = true
+                } else {
+                    returning = true
                 }
                 return true
             }
@@ -196,6 +202,12 @@ class GuardianView(context: Context) : View(context) {
                 val dx = e.x - downX
                 val dy = e.y - downY
                 travelled = hypot(dx, dy)
+                if (returning) {
+                    // Parked aside it follows the finger freely, so it can be carried home.
+                    ox = dx; oy = dy
+                    invalidate()
+                    return true
+                }
                 if (!dragging) return true
                 val d = travelled.coerceAtLeast(1f)
                 // Heavy resistance: dragging alone never gets it out of the ring.
@@ -209,9 +221,18 @@ class GuardianView(context: Context) : View(context) {
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 parent?.requestDisallowInterceptTouchEvent(false)
-                if (phase == Phase.UNLOCKED && travelled < dp(12f) && e.actionMasked == MotionEvent.ACTION_UP) {
-                    performClick()
-                    onTapWhileOpen()
+                if (returning) {
+                    returning = false
+                    val wasOpen = phase != Phase.LOCKED
+                    val (gx, gy) = ogreCentre()
+                    val home = hypot(gx - width / 2f, gy - height / 2f) < ringRadius() * 0.42f
+                    if (home && wasOpen && e.actionMasked == MotionEvent.ACTION_UP) {
+                        performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                        performClick() // locks; the screen then animates it back to the centre
+                    }
+                    // Dropped short, or the lock didn't come from this drop: let go of the finger offset.
+                    if (phase != Phase.LOCKED || !wasOpen) springBack()
+                    invalidate()
                     return true
                 }
                 if (!dragging) return true
@@ -238,19 +259,25 @@ class GuardianView(context: Context) : View(context) {
         return super.onTouchEvent(e)
     }
 
-    override fun performClick(): Boolean = super.performClick()
+    /** Also what a screen reader's double tap does: with the threshold open it returns the Guardian. */
+    override fun performClick(): Boolean {
+        super.performClick()
+        if (phase != Phase.LOCKED) onReturned()
+        return true
+    }
 
     override fun onDraw(canvas: Canvas) {
         val cx = width / 2f
         val cy = height / 2f
         val r = ringRadius()
 
-        // Halo behind the Guardian while it guards.
-        if (park < 1f) {
+        // Halo behind the Guardian while it guards, and marking its place while it is carried back.
+        val halo = if (returning) 1f else 1f - park
+        if (halo > 0f) {
             p.style = Paint.Style.FILL
             p.shader = RadialGradient(
                 cx, cy, r * 0.75f,
-                intArrayOf((0x38 * (1 - park)).toInt() shl 24 or (Ui.SAKURA and 0xFFFFFF), 0),
+                intArrayOf((0x38 * halo).toInt() shl 24 or (Ui.SAKURA and 0xFFFFFF), 0),
                 null, Shader.TileMode.CLAMP
             )
             canvas.drawCircle(cx, cy, r * 0.75f, p)
