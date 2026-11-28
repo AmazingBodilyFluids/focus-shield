@@ -22,8 +22,9 @@ A small, free Android app that blocks distracting apps and websites (YouTube and
   - battery at or above a level (80% by default),
   - optionally, those held for N minutes with the app open (unplugging resets the countdown).
 - **Block screens.** Blocked apps and browser tabs land on a screen where the Guardian says
-  something cheeky, picked at random ("Hehe, hoho, N-O!", "Error 418: I'm an ogre.", …).
-  Lines can be switched off or added in the **Block screens** card.
+  something cheeky, picked at random ("Hehe, hoho. NO.", "Loading… just kidding.", …).
+  In the **Block screens** card you can add your own lines and switch the app's taunts and your
+  custom taunts on or off.
 - **Self-protection.** While locked, the Accessibility toggle page, App info page and the
   uninstall dialog for Threshold are closed as soon as they open.
 

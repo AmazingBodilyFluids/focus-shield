@@ -70,19 +70,32 @@ class Prefs(context: Context) {
         get() = sp.getBoolean(KEY_GUARD, true)
         set(v) = sp.edit().putBoolean(KEY_GUARD, v).apply()
 
-    /** Every block-screen line, including ones the user wrote. */
-    var blockLines: List<String>
-        get() = sp.getString(KEY_LINES, null)?.split(LINE_SEP)?.filter { it.isNotBlank() } ?: Defaults.BLOCK_LINES
-        set(v) = sp.edit().putString(KEY_LINES, v.joinToString(LINE_SEP)).apply()
+    /** Lines the user wrote in the Block screens card, newest first. */
+    var customLines: List<String>
+        get() {
+            sp.getString(KEY_CUSTOM_LINES, null)?.let { s -> return s.split(LINE_SEP).filter { it.isNotBlank() } }
+            // Older builds kept the starters and the user's lines in one list: keep only the user's.
+            val old = sp.getString(KEY_LINES, null)?.split(LINE_SEP)?.filter { it.isNotBlank() } ?: emptyList()
+            val mine = old.filter { it !in Defaults.RETIRED_LINES && it !in Defaults.BLOCK_LINES }
+            sp.edit().putString(KEY_CUSTOM_LINES, mine.joinToString(LINE_SEP)).remove(KEY_LINES).apply()
+            return mine
+        }
+        set(v) = sp.edit().putString(KEY_CUSTOM_LINES, v.joinToString(LINE_SEP)).apply()
 
-    /** Lines switched off in the Block screens card. */
-    var linesOff: Set<String>
-        get() = sp.getStringSet(KEY_LINES_OFF, emptySet())!!.toSet()
-        set(v) = sp.edit().putStringSet(KEY_LINES_OFF, v).apply()
+    /** Block screens card: use the app's built-in taunts. */
+    var appTaunts: Boolean
+        get() = sp.getBoolean(KEY_APP_TAUNTS, true)
+        set(v) = sp.edit().putBoolean(KEY_APP_TAUNTS, v).apply()
 
-    /** A random line from the ones switched on, avoiding [not] when there is a choice. */
+    /** Block screens card: use the user's own taunts. */
+    var customTaunts: Boolean
+        get() = sp.getBoolean(KEY_CUSTOM_TAUNTS, true)
+        set(v) = sp.edit().putBoolean(KEY_CUSTOM_TAUNTS, v).apply()
+
+    /** A random line from the kinds switched on, avoiding [not] when there is a choice. Falls back to the app's own. */
     fun randomLine(not: String? = null): String {
-        val on = blockLines.filter { it !in linesOff }.ifEmpty { listOf("Denied.") }
+        val on = ((if (customTaunts) customLines else emptyList()) + (if (appTaunts) Defaults.BLOCK_LINES else emptyList()))
+            .distinct().ifEmpty { Defaults.BLOCK_LINES }
         val pool = on.filter { it != not }.ifEmpty { on }
         return pool.random()
     }
@@ -129,7 +142,9 @@ class Prefs(context: Context) {
         private const val KEY_LAST_ADDRESS = "last_address"
         private const val KEY_DNS_FILTER = "dns_filter"
         private const val KEY_LINES = "block_lines"
-        private const val KEY_LINES_OFF = "block_lines_off"
+        private const val KEY_CUSTOM_LINES = "custom_block_lines"
+        private const val KEY_APP_TAUNTS = "app_taunts"
+        private const val KEY_CUSTOM_TAUNTS = "custom_taunts"
         private const val LINE_SEP = "\u001F"
     }
 }

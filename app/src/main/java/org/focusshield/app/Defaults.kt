@@ -29,20 +29,27 @@ object Defaults {
 
     /** What the Guardian says on a block screen. One is picked at random each time. */
     val BLOCK_LINES = listOf(
-        "Hehe, hoho, N-O!",
+        "Hehe, hoho. NO.",
         "Denied.",
-        "This piggy went the wrong way.",
         "Refresh the page 20-ish times, maybe it'll work.",
+        "Closed for your own good. Opening hours: never.",
+        "Nope. Not today. Probably not tomorrow either.",
+        "I ate this page. It tasted of wasted time.",
+        "Your future self says thanks. Grudgingly.",
+        "Loading\u2026 just kidding.",
+        "Hey, maybe watch a movie or play a videogame instead. Study is okay too.",
+    )
+
+    /** The old starter lines. Used once to pick the user's own lines out of the old combined list. */
+    val RETIRED_LINES = setOf(
+        "Hehe, hoho, N-O!",
+        "This piggy went the wrong way.",
         "Error 418: I'm an ogre.",
         "Nice try. The Guardian saw that.",
         "Request received. Request laughed at.",
-        "Closed for your own good. Opening hours: never.",
         "Have you tried, hear me out, not watching that?",
-        "Nope. Not today. Probably not tomorrow either.",
         "The Guardian ate this page. It tasted of wasted afternoons.",
         "Plug in your charger and think about what you've done.",
-        "Your future self says thanks. Grudgingly.",
-        "Loading\u2026 just kidding.",
         "This little piggy stays home.",
         "Zero videos found. Zero regrets.",
         "Go touch some grass. I'll guard the door.",

@@ -52,7 +52,6 @@ class MainActivity : Activity() {
     private lateinit var saveButton: TextView
 
     private lateinit var lists: BlockLists
-    private lateinit var linesBox: LinearLayout
     private lateinit var linesTag: TextView
 
     /** Unsaved edits to the unlock rules. */
@@ -451,15 +450,29 @@ class MainActivity : Activity() {
     private fun linesCard(): View {
         val card = Ui.card(this)
         linesTag = cardHeader(card, "Block screens")
-        card.addView(Ui.muted(this, "The Guardian shows one of these, picked at random, whenever something blocked is opened. Untick a line to retire it."))
-        linesBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        card.addView(linesBox, rowParams())
+        card.addView(Ui.muted(this, "The Guardian picks a taunt at random whenever something blocked is opened."))
+        val appSwitch = PillSwitch(this)
+        val customSwitch = PillSwitch(this)
+        appSwitch.set(prefs.appTaunts)
+        customSwitch.set(prefs.customTaunts)
+        appSwitch.onChange = { on ->
+            if (!on && !prefs.customTaunts) { appSwitch.set(true, animate = true); toast("Keep one kind of taunt on") }
+            else { prefs.appTaunts = on; renderLines() }
+        }
+        customSwitch.onChange = { on ->
+            if (!on && !prefs.appTaunts) { customSwitch.set(true, animate = true); toast("Keep one kind of taunt on") }
+            else { prefs.customTaunts = on; renderLines() }
+        }
+        card.addView(Ui.row(this, "App taunts", "Threshold's own lines", appSwitch, divider = false), rowParams())
+        card.addView(Ui.row(this, "Custom taunts", "The ones you add below", customSwitch))
         val input = textInput("Write your own taunt")
         card.addView(addRow(input) {
             val t = input.text.toString().trim()
-            if (t.isNotEmpty()) {
-                if (t !in prefs.blockLines) prefs.blockLines = listOf(t) + prefs.blockLines
-                prefs.linesOff = prefs.linesOff - t
+            if (t in Defaults.BLOCK_LINES) {
+                input.setText("")
+                toast("The Guardian already says that one")
+            } else if (t.isNotEmpty()) {
+                if (t !in prefs.customLines) prefs.customLines = listOf(t) + prefs.customLines
                 input.setText("")
                 renderLines()
                 toast("Added to the Guardian's repertoire")
@@ -475,30 +488,8 @@ class MainActivity : Activity() {
     }
 
     private fun renderLines() {
-        val all = prefs.blockLines
-        val off = prefs.linesOff
-        linesTag.text = "${all.count { it !in off }} OF ${all.size} ON"
-        linesBox.removeAllViews()
-        all.forEachIndexed { i, line ->
-            val box = Ui.tickbox(this).apply { isChecked = line !in off }
-            box.setOnCheckedChangeListener { _, on ->
-                val nowOff = prefs.linesOff
-                if (!on && all.count { it !in nowOff } <= 1) {
-                    box.isChecked = true
-                    toast("Keep at least one line on")
-                    return@setOnCheckedChangeListener
-                }
-                prefs.linesOff = if (on) nowOff - line else nowOff + line
-                renderLines()
-            }
-            linesBox.addView(LinearLayout(this).apply {
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(0, dp(3), 0, dp(3))
-                if (i > 0) background = Ui.topLine(context)
-                addView(box)
-                addView(Ui.text(context, line, 14.5f, Ui.TEXT, Ui.DISPLAY), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-            })
-        }
+        val n = prefs.customLines.size
+        linesTag.text = if (n == 1) "1 CUSTOM" else "$n CUSTOM"
     }
 
     // ---------------------------------------------------------------- state
