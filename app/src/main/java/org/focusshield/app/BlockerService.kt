@@ -118,9 +118,8 @@ class BlockerService : AccessibilityService() {
             for (i in 0 until n.childCount) n.getChild(i)?.let { queue.add(it) }
         }
         if (!hasWeb) return
-        val sites = prefs.blockedSites
         for (h in hosts) {
-            val hit = siteMatches(h, sites) ?: continue
+            val hit = prefs.blockedSiteFor(h) ?: continue
             prefs.recordLastAddress(pkg, h)
             lastBlockAt = SystemClock.uptimeMillis()
             performGlobalAction(GLOBAL_ACTION_BACK)
@@ -131,8 +130,8 @@ class BlockerService : AccessibilityService() {
 
     private fun isBlockedApp(pkg: String): Boolean {
         if (pkg in neverBlock) return false
-        if (pkg in prefs.blockedApps) return true
-        val keywords = prefs.appKeywords
+        if (prefs.isAppListed(pkg)) return true
+        val keywords = prefs.allAppKeywords
         if (keywords.isEmpty()) return false
         val p = pkg.lowercase()
         val label = appLabel(pkg).lowercase()
@@ -157,7 +156,7 @@ class BlockerService : AccessibilityService() {
         if (bar.isFocused) return
         val host = hostOf(nodeText(bar) ?: return) ?: return
         prefs.recordLastAddress(pkg, host)
-        val hit = siteMatches(host, prefs.blockedSites) ?: return
+        val hit = prefs.blockedSiteFor(host) ?: return
         blockTab(pkg, bar, hit)
     }
 

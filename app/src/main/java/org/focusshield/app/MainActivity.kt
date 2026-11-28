@@ -5,6 +5,7 @@ import android.app.AlertDialog
 import android.content.ComponentName
 import android.content.Intent
 import android.graphics.Color
+import android.net.Uri
 import android.net.VpnService
 import android.os.Bundle
 import android.os.Handler
@@ -16,6 +17,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -28,15 +30,13 @@ class MainActivity : Activity() {
 
     private lateinit var badge: TextView
     private lateinit var guardian: GuardianView
-    private lateinit var stateTitle: TextView
-    private lateinit var hint: TextView
     private lateinit var chips: LinearLayout
-    private lateinit var lockButton: TextView
 
     private lateinit var svcDot: View
     private lateinit var svcText: TextView
     private lateinit var svcButton: TextView
     private lateinit var restrictNote: View
+    private lateinit var appInfoButton: TextView
     private lateinit var dnsDot: View
     private lateinit var dnsText: TextView
     private lateinit var dnsButton: TextView
@@ -51,8 +51,11 @@ class MainActivity : Activity() {
     private lateinit var windowStepper: Stepper
     private lateinit var saveButton: TextView
 
+    private lateinit var packsTag: TextView
+    private lateinit var packRows: LinearLayout
     private lateinit var lists: BlockLists
     private lateinit var linesTag: TextView
+    private lateinit var customBox: LinearLayout
 
     /** Unsaved edits to the unlock rules. */
     private var draftCharger = true
@@ -112,26 +115,18 @@ class MainActivity : Activity() {
             onTooGentle = { toast("Too gentle. Slide further.") }
             onStroke = { refresh() }
             onReleased = { guardianMoved() }
-            onTapWhileOpen = { lockNow() }
+            onReturned = { lockNow() }
         }
         col.addView(guardian, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
             topMargin = dp(6)
         })
 
-        stateTitle = Ui.text(this, "", 22f, Ui.TEXT, Ui.DISPLAY).apply { gravity = Gravity.CENTER }
-        col.addView(stateTitle, centred(dp(10)))
-        hint = Ui.muted(this, "", 13f).apply {
-            gravity = Gravity.CENTER
-            minLines = 2
-        }
-        col.addView(hint, centred(dp(4)).apply { leftMargin = dp(24); rightMargin = dp(24) })
         chips = LinearLayout(this).apply { gravity = Gravity.CENTER }
         col.addView(chips, centred(dp(12)))
-        lockButton = Ui.button(this, "Return the Guardian (lock now)") { lockNow() }
-        col.addView(lockButton, centred(dp(14)).apply { gravity = Gravity.CENTER_HORIZONTAL; width = LinearLayout.LayoutParams.WRAP_CONTENT })
 
         col.addView(protectionCard(), spaced(dp(22)))
         col.addView(rulesCard())
+        col.addView(packsCard())
         lists = BlockLists()
         col.addView(lists.card)
         col.addView(linesCard())
@@ -194,10 +189,17 @@ class MainActivity : Activity() {
         lastAddress = Ui.text(this, "", 12f, Ui.MUTED).apply { typeface = android.graphics.Typeface.MONOSPACE }
         card.addView(statusRow("Last address read", dot().apply { background = Ui.rounded(context, Ui.MUTED, 99f) }, lastAddress, null, true))
         restrictNote = note(
-            "If Android says the setting is restricted: open App info for Threshold, tap ⋮, " +
-                "choose \"Allow restricted settings\", then try again."
+            "If Android refuses with \"App was denied access\" or \"Restricted setting\":\n" +
+                "1. Tap Open App info below.\n" +
+                "2. Tap ⋮ in the top right corner and choose \"Allow restricted settings\", then confirm with your PIN or fingerprint.\n" +
+                "3. Come back here, tap Open settings and turn on Threshold.\n" +
+                "The ⋮ option only appears after Android has refused once, and it can't be used during a phone call."
         )
         card.addView(restrictNote)
+        appInfoButton = Ui.button(this, "Open App info") {
+            startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
+        }
+        card.addView(appInfoButton, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8) })
         card.addView(note(
             "The DNS filter shows as a VPN, but only website name lookups go through it. Tip: in " +
                 "Settings → VPN → Threshold, turn on \"Always-on VPN\" (leave \"Block connections without VPN\" off)."
@@ -445,6 +447,80 @@ class MainActivity : Activity() {
         }
     }
 
+    // ---------------------------------------------------------------- known blocklists
+
+    private fun packsCard(): View {
+        val card = Ui.card(this)
+        packsTag = cardHeader(card, "Known blocklists")
+        card.addView(Ui.muted(this, "Ready-made lists of well-known apps and sites, blocked on top of your own lists. Adding works any time; removing needs an unlock."))
+        packRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        card.addView(packRows, rowParams())
+        card.addView(Ui.button(this, "Add known blocklist", primary = true) { pickPacks() },
+            LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(10) })
+        renderPacks()
+        return card
+    }
+
+    private fun renderPacks() {
+        val on = prefs.blocklists
+        val added = Blocklists.ALL.filter { it.id in on }
+        packsTag.text = "${added.size} OF ${Blocklists.ALL.size} ON"
+        packRows.removeAllViews()
+        if (added.isEmpty()) packRows.addView(Ui.muted(this, "None added yet."))
+        added.forEachIndexed { i, pack ->
+            val box = Ui.tickbox(this).apply { isChecked = true }
+            val row = LinearLayout(this).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(0, dp(4), 0, dp(4))
+                if (i > 0) background = Ui.topLine(context)
+                addView(box)
+                addView(LinearLayout(context).apply {
+                    orientation = LinearLayout.VERTICAL
+                    addView(Ui.text(context, pack.name, 14f, Ui.TEXT, Ui.MEDIUM))
+                    addView(Ui.muted(context, pack.counts, 11.5f))
+                }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            }
+            box.setOnCheckedChangeListener { _, checked ->
+                if (checked) return@setOnCheckedChangeListener
+                if (!prefs.isUnlocked) {
+                    box.isChecked = true
+                    Ui.shake(row)
+                    toast("Locked: a blocklist can't be removed until you unlock")
+                } else {
+                    prefs.blocklists = prefs.blocklists - pack.id
+                    toast("Removed ${pack.name}")
+                    renderPacks()
+                }
+            }
+            packRows.addView(row)
+        }
+    }
+
+    /** Offers the known blocklists that aren't on yet. Nothing is added until "Add selected" is tapped. */
+    private fun pickPacks() {
+        val on = prefs.blocklists
+        val choices = Blocklists.ALL.filter { it.id !in on }
+        if (choices.isEmpty()) {
+            toast("All known blocklists are already on"); return
+        }
+        val checked = BooleanArray(choices.size)
+        AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+            .setTitle("Add known blocklist")
+            .setMultiChoiceItems(choices.map { "${it.name}\n${it.about}" }.toTypedArray(), checked) { _, i, c ->
+                checked[i] = c
+            }
+            .setPositiveButton("Add selected") { _, _ ->
+                val chosen = choices.filterIndexed { i, _ -> checked[i] }
+                if (chosen.isNotEmpty()) {
+                    prefs.blocklists = prefs.blocklists + chosen.map { it.id }
+                    renderPacks()
+                    toast("Added: " + chosen.joinToString(", ") { it.name })
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     // ---------------------------------------------------------------- block screens
 
     private fun linesCard(): View {
@@ -464,7 +540,9 @@ class MainActivity : Activity() {
             else { prefs.customTaunts = on; renderLines() }
         }
         card.addView(Ui.row(this, "App taunts", "Threshold's own lines", appSwitch, divider = false), rowParams())
-        card.addView(Ui.row(this, "Custom taunts", "The ones you add below", customSwitch))
+        card.addView(Ui.row(this, "Custom taunts", "Your own lines. Tap one to edit it.", customSwitch))
+        customBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        card.addView(customBox, rowParams())
         val input = textInput("Write your own taunt")
         card.addView(addRow(input) {
             val t = input.text.toString().trim()
@@ -487,9 +565,74 @@ class MainActivity : Activity() {
         return card
     }
 
+    /** The user's own taunts, listed under the Custom taunts switch. The app's own are never listed. */
     private fun renderLines() {
-        val n = prefs.customLines.size
-        linesTag.text = if (n == 1) "1 CUSTOM" else "$n CUSTOM"
+        val mine = prefs.customLines
+        linesTag.text = if (mine.size == 1) "1 CUSTOM" else "${mine.size} CUSTOM"
+        customBox.removeAllViews()
+        if (mine.isEmpty()) customBox.addView(Ui.muted(this, "None yet. Write one below."))
+        mine.forEachIndexed { i, line ->
+            customBox.addView(LinearLayout(this).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                if (i > 0) background = Ui.topLine(context)
+                addView(Ui.text(context, line, 14.5f, Ui.TEXT, Ui.DISPLAY).apply {
+                    setPadding(0, dp(11), dp(8), dp(11))
+                    contentDescription = "Edit taunt: $line"
+                    isClickable = true
+                    setOnClickListener { editLine(line) }
+                }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                addView(Ui.text(context, "×", 20f, Ui.MUTED).apply {
+                    gravity = Gravity.CENTER
+                    contentDescription = "Delete taunt: $line"
+                    isClickable = true
+                    setOnClickListener { deleteLine(line) }
+                }, LinearLayout.LayoutParams(dp(44), dp(44)))
+            })
+        }
+    }
+
+    private fun editLine(old: String) {
+        val input = EditText(this).apply {
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            setText(old)
+            setSelection(old.length)
+            setTextColor(Ui.TEXT)
+        }
+        val holder = FrameLayout(this).apply {
+            setPadding(dp(20), dp(8), dp(20), 0)
+            addView(input)
+        }
+        AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+            .setTitle("Edit taunt")
+            .setView(holder)
+            .setPositiveButton("Save") { _, _ ->
+                val t = input.text.toString().replace('\n', ' ').trim()
+                val lines = prefs.customLines
+                when {
+                    t.isEmpty() || t == old -> {}
+                    t in Defaults.BLOCK_LINES -> toast("The Guardian already says that one")
+                    t in lines -> toast("You already have that one")
+                    else -> {
+                        prefs.customLines = lines.map { if (it == old) t else it }
+                        renderLines()
+                        toast("Saved")
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun deleteLine(line: String) {
+        AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+            .setTitle("Delete this taunt?")
+            .setMessage(line)
+            .setPositiveButton("Delete") { _, _ ->
+                prefs.customLines = prefs.customLines - line
+                renderLines()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     // ---------------------------------------------------------------- state
@@ -578,6 +721,7 @@ class MainActivity : Activity() {
         svcText.text = if (on) "Running" else "Off. Blocking won't work until you turn on Threshold in Accessibility settings."
         svcButton.visibility = if (on) View.GONE else View.VISIBLE
         restrictNote.visibility = if (on) View.GONE else View.VISIBLE
+        appInfoButton.visibility = restrictNote.visibility
         val dnsOn = DnsVpnService.running
         setDot(dnsDot, dnsOn || !prefs.dnsFilter)
         dnsText.text = when {
@@ -614,30 +758,17 @@ class MainActivity : Activity() {
                 val total = prefs.unlockMinutes * 60_000f
                 guardian.show(GuardianView.Phase.UNLOCKED, (left / total), fmt(left), "Blocking paused")
                 setBadge("Unlocked " + fmt(left), Ui.GOLD)
-                stateTitle.text = "Threshold open"
-                hint.text = "You can remove list items and change the rules. Tap the Guardian to lock early."
             }
             holdStartedAt != null -> {
                 val total = prefs.waitMinutes * 60_000f
                 guardian.show(GuardianView.Phase.HOLDING, holdLeft / total, fmt(holdLeft), "Hold the conditions")
                 setBadge("Holding", Ui.SAKURA)
-                stateTitle.text = "The Guardian is stepping aside"
-                hint.text = "Keep the charger in and this screen open. If a condition breaks, the Guardian returns."
             }
             else -> {
                 guardian.show(GuardianView.Phase.LOCKED, 0f, "", "")
                 setBadge("Locked", Ui.SAKURA)
-                stateTitle.text = "Locked. Blocking is on."
-                val left = GuardianView.NEEDED - guardian.strokes
-                hint.text = when {
-                    !met -> "The Guardian stays put until the conditions below are met."
-                    guardian.strokes == 0 -> "Slide the Guardian off the threshold. It takes ${GuardianView.NEEDED} firm strokes before it gives way."
-                    else -> "$left more stroke${if (left > 1) "s" else ""}. Keep going or the seals re-form."
-                }
             }
         }
-        lockButton.visibility = if (unlocked) View.VISIBLE else View.GONE
-
         chips.removeAllViews()
         if (conds.isEmpty()) chips.addView(chip("No unlock conditions set", Ui.MUTED))
         conds.forEach { chips.addView(chip((if (it.ok) "✓ " else "✗ ") + it.label, if (it.ok) Ui.JADE else Ui.EMBER)) }

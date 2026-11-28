@@ -41,6 +41,28 @@ class Prefs(context: Context) {
         get() = sp.getStringSet(KEY_BROWSERS, emptySet())!!.toSet()
         set(v) = sp.edit().putStringSet(KEY_BROWSERS, addOnlyWhileLocked(browsers, v)).apply()
 
+    /** Ids of the known blocklists that are on (see [Blocklists]). Add-only while locked, like the lists. */
+    var blocklists: Set<String>
+        get() = sp.getStringSet(KEY_BLOCKLISTS, emptySet())!!.toSet()
+        set(v) = sp.edit().putStringSet(KEY_BLOCKLISTS, addOnlyWhileLocked(blocklists, v)).apply()
+
+    /** True when [pkg] is on the user's Apps list or in a known blocklist that is on. */
+    fun isAppListed(pkg: String): Boolean = pkg in blockedApps || pkg in Blocklists.merged(blocklists).apps
+
+    /** The user's keywords plus those of the known blocklists that are on. */
+    val allAppKeywords: Set<String>
+        get() = appKeywords + Blocklists.merged(blocklists).appKeywords
+
+    /**
+     * The entry that blocks [host]: from the user's Websites list or a known blocklist that is on.
+     * With [dns] the entries a blocklist marks as browser-only are skipped.
+     */
+    fun blockedSiteFor(host: String, dns: Boolean = false): String? {
+        siteMatches(host, blockedSites)?.let { return it }
+        val known = Blocklists.merged(blocklists)
+        return siteMatches(host, known.sites) ?: if (dns) null else siteMatches(host, known.pageOnlySites)
+    }
+
     var requireCharger: Boolean
         get() = sp.getBoolean(KEY_REQ_CHARGER, true)
         set(v) = sp.edit().putBoolean(KEY_REQ_CHARGER, v).apply()
@@ -133,6 +155,7 @@ class Prefs(context: Context) {
         private const val KEY_KEYWORDS = "app_keywords"
         private const val KEY_SITES = "sites"
         private const val KEY_BROWSERS = "browsers"
+        private const val KEY_BLOCKLISTS = "blocklists"
         private const val KEY_REQ_CHARGER = "require_charger"
         private const val KEY_MIN_BATTERY = "min_battery"
         private const val KEY_WAIT = "wait_minutes"

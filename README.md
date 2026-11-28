@@ -6,6 +6,9 @@ A small, free Android app that blocks distracting apps and websites (YouTube and
 
 - **Blocks apps** by package name, plus any app whose name or package contains a keyword
   (`youtube`, `newpipe`, `revanced`, …), so patched or renamed clients are caught.
+- **Known blocklists.** Five ready-made lists (Video, Social, Porn, Gambling, News & tabloids) can
+  be added with one button. Each covers well-known sites and apps of that kind and is blocked on
+  top of your own lists; like the lists, they can be added any time but only removed while unlocked.
 - **Blocks websites** in two layers:
   - a **DNS filter** (a local VPN that only carries name lookups) answers "no such site" for
     blocked domains, so they fail to load in every browser and app;
@@ -16,15 +19,15 @@ A small, free Android app that blocks distracting apps and websites (YouTube and
   for a set time (15 min by default). To unlock, all enabled
   conditions must be met, and then the **Guardian** (the 👹 ogre in the middle of the main
   screen) has to be slid off the threshold with 6 separate long strokes. Each stroke breaks a
-  seal; pause for a few seconds and a seal re-forms. Tap the Guardian to lock again early.
+  seal; pause for a few seconds and a seal re-forms. Drag the Guardian back onto its place to lock again early.
   The conditions are:
   - charger connected,
   - battery at or above a level (80% by default),
   - optionally, those held for N minutes with the app open (unplugging resets the countdown).
 - **Block screens.** Blocked apps and browser tabs land on a screen where the Guardian says
   something cheeky, picked at random ("Hehe, hoho. NO.", "Loading… just kidding.", …).
-  In the **Block screens** card you can add your own lines and switch the app's taunts and your
-  custom taunts on or off.
+  In the **Block screens** card you can add, edit and delete your own lines and switch the app's
+  taunts and your custom taunts on or off.
 - **Self-protection.** While locked, the Accessibility toggle page, App info page and the
   uninstall dialog for Threshold are closed as soon as they open.
 
@@ -35,9 +38,11 @@ The first 30 minutes after install are unlocked so you can set it up.
 1. Download the newest `Threshold-N.apk` from the repo's **Releases** page on your phone.
 2. Open it and allow installing from your browser/files app when asked.
 3. Open Threshold and tap **Open Accessibility settings**, then turn on Threshold.
-   On Android 13+ this may be greyed out as a "restricted setting": go to
-   Settings → Apps → Threshold → ⋮ → **Allow restricted settings**, then try again.
-4. Edit your lists, set your unlock rules, tap **Save unlock rules**, then tap the Guardian to lock.
+   On Android 13+ this may be refused ("App was denied access", or greyed out as a "restricted
+   setting"): tap **Open App info** in Threshold, then ⋮ → **Allow restricted settings**, and try again.
+   If Google Play Protect refuses to install the APK at all, pause "Scan apps with Play Protect"
+   in the Play Store for the install, or install over USB with `adb install`.
+4. Edit your lists, set your unlock rules, tap **Save unlock rules**, then drag the Guardian back onto its place to lock.
 
 New builds install over the old one and keep your settings.
 
