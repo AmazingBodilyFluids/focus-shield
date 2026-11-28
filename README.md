@@ -31,7 +31,9 @@ A small, free Android app that blocks distracting apps and websites (YouTube and
 - **Self-protection.** While locked, the Accessibility toggle page, App info page and the
   uninstall dialog for Threshold are closed as soon as they open.
 
-The first 30 minutes after install are unlocked so you can set it up.
+After install the Guardian is off: nothing is blocked or guarded, with no time limit, until you
+first drag the Guardian into place. That leaves room to turn on the blocking service and fill in
+your lists.
 
 ## Install
 
