@@ -16,7 +16,7 @@ import android.widget.TextView
 class BlockedActivity : Activity() {
 
     private lateinit var prefs: Prefs
-    private lateinit var ogre: TextView
+    private lateinit var ogre: ImageView
     private lateinit var line: TextView
     private lateinit var what: TextView
     private lateinit var count: TextView
@@ -28,11 +28,9 @@ class BlockedActivity : Activity() {
         prefs = Prefs(this)
         val dp = { v: Int -> Ui.dp(this, v) }
 
-        ogre = TextView(this).apply {
-            text = Ui.OGRE
-            textSize = 150f
-            gravity = Gravity.CENTER
-            includeFontPadding = false
+        ogre = ImageView(this).apply {
+            setImageResource(R.drawable.ogre)
+            contentDescription = "The Guardian"
         }
         line = Ui.text(this, "", 30f, Ui.TEXT, Ui.DISPLAY).apply {
             gravity = Gravity.CENTER
@@ -45,7 +43,7 @@ class BlockedActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             setPadding(dp(28), dp(40), dp(28), dp(40))
-            addView(ogre)
+            addView(ogre, LinearLayout.LayoutParams(dp(172), dp(172)))
             addView(line, lp(dp(20)))
             addView(what, lp(dp(12)))
             addView(LinearLayout(context).apply {

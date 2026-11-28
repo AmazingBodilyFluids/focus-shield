@@ -23,7 +23,10 @@ class BlockerService : AccessibilityService() {
     private var browserCacheAt = 0L
     private var lastDnsCheckAt = 0L
     private val handler = Handler(Looper.getMainLooper())
-    private val blockedPage = BlockedPageServer { Prefs(this).randomLine() }
+    private val blockedPage = BlockedPageServer(
+        { Prefs(this).randomLine() },
+        { resources.openRawResource(R.drawable.ogre).use { it.readBytes() } },
+    )
 
     override fun onServiceConnected() {
         prefs = Prefs(this)

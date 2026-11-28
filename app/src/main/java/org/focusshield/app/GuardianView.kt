@@ -2,6 +2,7 @@ package org.focusshield.app
 
 import android.animation.ValueAnimator
 import android.content.Context
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.DashPathEffect
 import android.graphics.Paint
@@ -63,7 +64,10 @@ class GuardianView(context: Context) : View(context) {
     private var lastDy = 0f
 
     private val p = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val emoji = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
+    /** The Guardian's face: res/drawable-nodpi/ogre.png, so it looks the same on every phone. */
+    private val ogre = BitmapFactory.decodeResource(resources, R.drawable.ogre)
+    private val ogrePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+    private val ogreBox = RectF()
     private val label = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
     private val oval = RectF()
     private val dash = DashPathEffect(floatArrayOf(dp(2f), dp(6f)), 0f)
@@ -319,9 +323,9 @@ class GuardianView(context: Context) : View(context) {
         canvas.translate(gx + shakeX, gy)
         canvas.rotate(rot + park * 18f + shakeX * 0.7f)
         canvas.scale(scale, scale)
-        emoji.textSize = ogreSize()
-        val fm = emoji.fontMetrics
-        canvas.drawText(Ui.OGRE, 0f, -(fm.ascent + fm.descent) / 2f, emoji)
+        val half = ogreSize() * 0.58f
+        ogreBox.set(-half, -half, half, half)
+        canvas.drawBitmap(ogre, null, ogreBox, ogrePaint)
         canvas.restore()
     }
 

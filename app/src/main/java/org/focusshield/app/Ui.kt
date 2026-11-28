@@ -36,8 +36,6 @@ object Ui {
     val BODY: Typeface = Typeface.create("sans-serif", Typeface.NORMAL)
     val MEDIUM: Typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
 
-    const val OGRE = "👹" // 👹, drawn with the phone's own emoji font
-
     fun dp(c: Context, v: Float) = v * c.resources.displayMetrics.density
     fun dp(c: Context, v: Int) = (v * c.resources.displayMetrics.density).toInt()
 

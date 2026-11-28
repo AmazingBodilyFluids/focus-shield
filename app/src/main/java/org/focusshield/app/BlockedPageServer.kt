@@ -9,7 +9,12 @@ import java.net.URLDecoder
  * here, so the browser stays open on a harmless page instead of being closed. Nothing
  * outside the phone can reach it.
  */
-class BlockedPageServer(private val line: () -> String) {
+class BlockedPageServer(private val line: () -> String, private val ogrePng: () -> ByteArray) {
+    /** The Guardian's picture, read once and served at /ogre.png. */
+    private val ogre: ByteArray by lazy {
+        try { ogrePng() } catch (e: Exception) { ByteArray(0) }
+    }
+
     @Volatile
     private var socket: ServerSocket? = null
 
@@ -34,11 +39,17 @@ class BlockedPageServer(private val line: () -> String) {
                     c.soTimeout = 3000
                     val line = c.getInputStream().bufferedReader().readLine() ?: ""
                     val path = line.split(' ').getOrNull(1) ?: "/"
-                    val body = if (path.startsWith("/favicon")) "" else page(param(path, "site"), param(path, "n").toIntOrNull() ?: 1)
-                    val status = if (body.isEmpty()) "404 Not Found" else "200 OK"
-                    val bytes = body.toByteArray(Charsets.UTF_8)
-                    val head = "HTTP/1.1 $status\r\nContent-Type: text/html; charset=utf-8\r\n" +
-                        "Content-Length: ${bytes.size}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n"
+                    val image = path.startsWith("/ogre.png")
+                    val bytes = when {
+                        image -> ogre
+                        path.startsWith("/favicon") -> ByteArray(0)
+                        else -> page(param(path, "site"), param(path, "n").toIntOrNull() ?: 1).toByteArray(Charsets.UTF_8)
+                    }
+                    val status = if (bytes.isEmpty()) "404 Not Found" else "200 OK"
+                    val type = if (image) "image/png" else "text/html; charset=utf-8"
+                    val cache = if (image) "max-age=86400" else "no-store"
+                    val head = "HTTP/1.1 $status\r\nContent-Type: $type\r\n" +
+                        "Content-Length: ${bytes.size}\r\nCache-Control: $cache\r\nConnection: close\r\n\r\n"
                     c.getOutputStream().apply {
                         write(head.toByteArray())
                         write(bytes)
@@ -92,7 +103,7 @@ body{min-height:100vh;display:flex;flex-direction:column;align-items:center;just
 padding:40px 28px;box-sizing:border-box;color:#ecebf3;font-family:system-ui,-apple-system,Roboto,sans-serif;
 background:radial-gradient(120% 70% at 50% 38%,#2a1820 0%,#14151e 60%,#0e0f15 100%)}
 .top{position:absolute;top:26px;left:0;right:0;font-size:12px;letter-spacing:.16em;color:#9a9cb2}
-.ogre{font-size:150px;line-height:1;filter:drop-shadow(0 18px 30px rgba(0,0,0,.6));animation:$anim .8s cubic-bezier(.2,1.4,.4,1)}
+.ogre{display:block;width:172px;height:172px;filter:drop-shadow(0 18px 30px rgba(0,0,0,.6));animation:$anim .8s cubic-bezier(.2,1.4,.4,1)}
 h1{font-family:"Noto Serif",Georgia,serif;font-size:30px;line-height:1.15;margin:22px 0 0;max-width:16ch}
 p{color:#9a9cb2;font-size:14px;margin:12px 0 0}p b{color:#f4bccb;font-family:monospace}
 .a{display:flex;gap:10px;margin-top:28px;flex-wrap:wrap;justify-content:center}
@@ -107,7 +118,7 @@ p{color:#9a9cb2;font-size:14px;margin:12px 0 0}p b{color:#f4bccb;font-family:mon
 </style></head>
 <body>
 <div class="top">THRESHOLD</div>
-<div class="ogre">${Ui.OGRE}</div>
+<img class="ogre" src="/ogre.png" alt="The Guardian" width="172" height="172">
 <h1>$taunt</h1>
 <p>$what is behind the threshold.</p>
 <div class="a"><a href="$next">Try again</a><a class="p" href="about:blank">Close this tab</a></div>
